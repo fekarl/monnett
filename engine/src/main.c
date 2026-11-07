@@ -134,7 +134,8 @@ static enum error_code load_config(struct engine *eng,
         return eng->err.code;
     if (config_load(&eng->cfg, path, required, &eng->err) != ERR_OK)
         return eng->err.code;
-    config_apply_args(&eng->cfg, opts);
+    if (config_apply_args(&eng->cfg, opts, &eng->err) != ERR_OK)
+        return eng->err.code;
     if (config_validate(&eng->cfg, &eng->err) != ERR_OK)
         return eng->err.code;
     config_print(&eng->cfg, eng->cfg.file_loaded ? path : NULL);

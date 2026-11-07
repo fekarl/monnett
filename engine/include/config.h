@@ -26,6 +26,8 @@
 #define BUFFER_MB_MAX 1024
 #define TIMEOUT_MS_MIN 1
 #define TIMEOUT_MS_MAX 1000
+#define SCHED_US_MIN 10
+#define SCHED_US_MAX 1000000
 
 struct cli_opts {
     const char *config;
@@ -55,7 +57,9 @@ enum error_code config_check_perms(const char *path, struct error_info *e);
 enum error_code config_load(struct engine_config *c, const char *path,
                             int required, struct error_info *e);
 
-void config_apply_args(struct engine_config *c, const struct cli_opts *o);
+enum error_code config_apply_args(struct engine_config *c,
+                                  const struct cli_opts *opts,
+                                  struct error_info *e);
 
 enum error_code config_validate(struct engine_config *c, struct error_info *e);
 
