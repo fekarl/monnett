@@ -15,15 +15,15 @@
 #define STARTUP_TIMEOUT_MS 2000
 #define US_TO_NS(us) ((uint64_t)(us) * 1000u)
 
-struct engine {
-    struct engine_config cfg;
-    struct capture cap;
-    struct pkt_pool pool;
-    struct scheduler_startup startup;
-    struct capture_thread_args cargs;
+typedef struct engine {
+    engine_config_mt cfg;
+    capture_mt cap;
+    pkt_pool_mt pool;
+    scheduler_startup_mt startup;
+    capture_thread_args_mt cargs;
     pthread_t tcap;
-    struct error_info err;
-};
+    error_info_mt err;
+} engine_mt;
 
 static void usage(FILE *f, const char *prog) {
     fprintf(f,
@@ -44,8 +44,8 @@ static const char *option_name(char **argv, int opt) {
     return shortopt;
 }
 
-static enum error_code parse_args(int argc, char **argv, struct cli_opts *opts,
-                                  struct error_info *e) {
+static error_code_mt parse_args(int argc, char **argv, cli_opts_mt *opts,
+                                error_info_mt *e) {
     static const struct option longopts[] = {
         {"config", required_argument, NULL, 'c'},
         {"source", required_argument, NULL, 'i'},
@@ -91,8 +91,8 @@ static void setup_signals(sigset_t *set) {
     pthread_sigmask(SIG_BLOCK, set, NULL);
 }
 
-static void print_stats(struct capture *c, const char *when) {
-    struct cap_stats s;
+static void print_stats(capture_mt *c, const char *when) {
+    cap_stats_mt s;
     cap_snapshot(c, &s);
     printf("[%s] captured=%llu bytes=%llu engine_drop=%llu truncated=%llu "
            "k_recv=%llu k_drop=%llu k_ifdrop=%llu\n",
@@ -103,7 +103,7 @@ static void print_stats(struct capture *c, const char *when) {
     fflush(stdout);
 }
 
-static int wait_for_stop(struct engine *eng, const sigset_t *set) {
+static int wait_for_stop(engine_mt *eng, const sigset_t *set) {
     const struct timespec one_second = {.tv_sec = 1, .tv_nsec = 0};
 
     for (;;) {
@@ -122,10 +122,9 @@ static int wait_for_stop(struct engine *eng, const sigset_t *set) {
     }
 }
 
-static int exit_code(const struct engine *eng) { return (int)eng->err.code; }
+static int exit_code(const engine_mt *eng) { return (int)eng->err.code; }
 
-static enum error_code load_config(struct engine *eng,
-                                   const struct cli_opts *opts) {
+static error_code_mt load_config(engine_mt *eng, const cli_opts_mt *opts) {
     const char *path = opts->config ? opts->config : DEFAULT_CONFIG;
     int required = (opts->config != NULL);
 
@@ -142,9 +141,9 @@ static enum error_code load_config(struct engine *eng,
     return ERR_OK;
 }
 
-static void run_capture(struct engine *eng, const sigset_t *sigs) {
+static void run_capture(engine_mt *eng, const sigset_t *sigs) {
     scheduler_startup_init(&eng->startup, 1);
-    eng->cargs = (struct capture_thread_args){
+    eng->cargs = (capture_thread_args_mt){
         .cap = &eng->cap,
         .pool = &eng->pool,
         .startup = &eng->startup,
@@ -179,7 +178,7 @@ static void run_capture(struct engine *eng, const sigset_t *sigs) {
     scheduler_startup_destroy(&eng->startup);
 }
 
-static void run_engine(struct engine *eng) {
+static void run_engine(engine_mt *eng) {
     if (cap_open(&eng->cap, &eng->cfg, &eng->err) != ERR_OK)
         return;
 
@@ -194,8 +193,8 @@ static void run_engine(struct engine *eng) {
 }
 
 int main(int argc, char **argv) {
-    struct engine eng;
-    struct cli_opts opts;
+    engine_mt eng;
+    cli_opts_mt opts;
 
     memset(&eng, 0, sizeof eng);
 

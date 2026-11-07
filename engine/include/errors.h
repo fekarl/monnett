@@ -1,7 +1,7 @@
 #ifndef ERRORS_H
 #define ERRORS_H
 
-enum error_code {
+typedef enum error_code {
     ERR_OK = 0,
     ERR_ARGS = 1,
     ERR_CONFIG = 2,
@@ -15,21 +15,21 @@ enum error_code {
     ERR_CAPS = 10,
     ERR_THREAD = 11,
     ERR_CAPTURE = 12,
-};
+} error_code_mt;
 
 #define ERR_MSG_MAX 256
 
-struct error_info {
-    enum error_code code;
+typedef struct error_info {
+    error_code_mt code;
     int sys_errno;
     char msg[ERR_MSG_MAX];
-};
+} error_info_mt;
 
-enum error_code error_fail(struct error_info *e, enum error_code code,
-                           const char *what, const char *why);
+error_code_mt error_fail(error_info_mt *e, error_code_mt code, const char *what,
+                         const char *why);
 
-const char *error_str(enum error_code code);
+const char *error_str(error_code_mt code);
 
-void error_print(const struct error_info *e);
+void error_print(const error_info_mt *e);
 
 #endif

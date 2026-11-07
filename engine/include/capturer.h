@@ -9,7 +9,7 @@
 #include <stdatomic.h>
 #include <stdint.h>
 
-struct cap_counters {
+typedef struct cap_counters {
     _Atomic uint64_t captured;
     _Atomic uint64_t bytes;
     _Atomic uint64_t engine_drop;
@@ -17,40 +17,40 @@ struct cap_counters {
     _Atomic uint64_t k_recv;
     _Atomic uint64_t k_drop;
     _Atomic uint64_t k_ifdrop;
-};
+} cap_counters_mt;
 
-struct capture {
+typedef struct capture {
     pcap_t *p;
     int is_file;
     int linktype;
     atomic_int running;
     atomic_int done;
     struct pcap_stat last;
-    struct cap_counters cnt;
+    cap_counters_mt cnt;
     char err[PCAP_ERRBUF_SIZE];
-};
+} capture_mt;
 
-struct cap_stats {
+typedef struct cap_stats {
     uint64_t captured, bytes, engine_drop, truncated, k_recv, k_drop, k_ifdrop;
-};
+} cap_stats_mt;
 
-enum error_code cap_open(struct capture *c, const struct engine_config *cfg,
-                         struct error_info *e);
-const char *cap_error(const struct capture *c);
+error_code_mt cap_open(capture_mt *c, const engine_config_mt *cfg,
+                       error_info_mt *e);
+const char *cap_error(const capture_mt *c);
 
-int cap_next(struct capture *c, struct pkt_slot *out);
-void cap_poll_kernel_stats(struct capture *c);
-void cap_snapshot(struct capture *c, struct cap_stats *s);
-void cap_stop(struct capture *c);
-void cap_close(struct capture *c);
+int cap_next(capture_mt *c, pkt_slot_mt *out);
+void cap_poll_kernel_stats(capture_mt *c);
+void cap_snapshot(capture_mt *c, cap_stats_mt *s);
+void cap_stop(capture_mt *c);
+void cap_close(capture_mt *c);
 
-struct capture_thread_args {
-    struct capture *cap;
-    struct pkt_pool *pool;
-    struct scheduler_startup *startup;
+typedef struct capture_thread_args {
+    capture_mt *cap;
+    pkt_pool_mt *pool;
+    scheduler_startup_mt *startup;
     uint64_t runtime_ns, deadline_ns, period_ns;
-    struct error_info err;
-};
+    error_info_mt err;
+} capture_thread_args_mt;
 
 void *capture_thread(void *arg);
 

@@ -11,7 +11,7 @@
 
 #define LINE_MAX_LEN 2048
 
-enum key_id {
+typedef enum key_id {
     KEY_SOURCE,
     KEY_FILTER,
     KEY_PROMISC,
@@ -22,7 +22,7 @@ enum key_id {
     KEY_CAP_DEADLINE_US,
     KEY_CAP_PERIOD_US,
     KEY_COUNT
-};
+} key_id_mt;
 
 static const char *const key_names[KEY_COUNT] = {
     [KEY_SOURCE] = "source",
@@ -36,16 +36,16 @@ static const char *const key_names[KEY_COUNT] = {
     [KEY_CAP_PERIOD_US] = "cap_period_us",
 };
 
-struct parser {
+typedef struct parser {
     const char *path;
     int line;
     int in_engine;
     int seen_engine;
     int seen[KEY_COUNT];
-    struct error_info *e;
-};
+    error_info_mt *e;
+} parser_mt;
 
-void config_defaults(struct engine_config *c) {
+void config_defaults(engine_config_mt *c) {
     memset(c, 0, sizeof *c);
     snprintf(c->source, sizeof c->source, "%s", DEF_SOURCE);
     snprintf(c->filter, sizeof c->filter, "%s", DEF_FILTER);
@@ -58,7 +58,7 @@ void config_defaults(struct engine_config *c) {
     c->cap_period_us = DEF_CAP_PERIOD_US;
 }
 
-enum error_code config_check_perms(const char *path, struct error_info *e) {
+error_code_mt config_check_perms(const char *path, error_info_mt *e) {
     struct stat sb;
 
     if (stat(path, &sb) != 0) {
@@ -77,15 +77,14 @@ enum error_code config_check_perms(const char *path, struct error_info *e) {
     return ERR_OK;
 }
 
-static enum error_code parse_fail(struct parser *p, const char *why) {
+static error_code_mt parse_fail(parser_mt *p, const char *why) {
     char where[CFG_SOURCE_MAX + 16];
 
     snprintf(where, sizeof where, "%s:%d", p->path, p->line);
     return error_fail(p->e, ERR_CONFIG, where, why);
 }
 
-static enum error_code key_fail(struct parser *p, const char *why,
-                                const char *key) {
+static error_code_mt key_fail(parser_mt *p, const char *why, const char *key) {
     char msg[128];
 
     snprintf(msg, sizeof msg, "%s '%s'", why, key);
@@ -110,8 +109,8 @@ static int find_key(const char *name) {
     return -1;
 }
 
-static enum error_code read_string(struct parser *p, char **s, char *out,
-                                   size_t size) {
+static error_code_mt read_string(parser_mt *p, char **s, char *out,
+                                 size_t size) {
     char *r = *s + 1;
     size_t n = 0;
 
@@ -149,8 +148,7 @@ static enum error_code read_string(struct parser *p, char **s, char *out,
     return ERR_OK;
 }
 
-static enum error_code read_bare(struct parser *p, char **s, char *out,
-                                 size_t size) {
+static error_code_mt read_bare(parser_mt *p, char **s, char *out, size_t size) {
     char *r = *s;
     size_t n = 0;
 
@@ -180,8 +178,8 @@ static int parse_uint(const char *text, unsigned long long max,
     return 0;
 }
 
-static enum error_code set_value(struct parser *p, struct engine_config *c,
-                                 int key, int quoted, const char *text) {
+static error_code_mt set_value(parser_mt *p, engine_config_mt *c, int key,
+                               int quoted, const char *text) {
     unsigned long long v = 0;
     const char *name = key_names[key];
 
@@ -238,7 +236,7 @@ static enum error_code set_value(struct parser *p, struct engine_config *c,
     return ERR_OK;
 }
 
-static enum error_code parse_section(struct parser *p, char *s) {
+static error_code_mt parse_section(parser_mt *p, char *s) {
     char *end = strchr(s, ']');
 
     if (end == NULL)
@@ -263,13 +261,13 @@ static enum error_code parse_section(struct parser *p, char *s) {
     return ERR_OK;
 }
 
-static enum error_code parse_key_value(struct parser *p,
-                                       struct engine_config *c, char *s) {
+static error_code_mt parse_key_value(parser_mt *p, engine_config_mt *c,
+                                     char *s) {
     char name[64];
     char value[CFG_FILTER_MAX];
     size_t n = 0;
     int quoted;
-    enum error_code rc;
+    error_code_mt rc;
 
     while (is_key_char(*s)) {
         if (n + 1 >= sizeof name)
@@ -307,8 +305,7 @@ static enum error_code parse_key_value(struct parser *p,
     return set_value(p, c, key, quoted, value);
 }
 
-static enum error_code parse_line(struct parser *p, struct engine_config *c,
-                                  char *line) {
+static error_code_mt parse_line(parser_mt *p, engine_config_mt *c, char *line) {
     char *s = skip_space(line);
 
     if (*s == '\0' || *s == '#')
@@ -324,11 +321,11 @@ static void warn(const char *path, const char *why) {
     fprintf(stderr, "monnett: warning: %s: %s\n", path, why);
 }
 
-enum error_code config_load(struct engine_config *c, const char *path,
-                            int required, struct error_info *e) {
-    struct parser p = {.path = path, .e = e};
+error_code_mt config_load(engine_config_mt *c, const char *path, int required,
+                          error_info_mt *e) {
+    parser_mt p = {.path = path, .e = e};
     char line[LINE_MAX_LEN];
-    enum error_code rc = ERR_OK;
+    error_code_mt rc = ERR_OK;
 
     FILE *f = fopen(path, "r");
     if (f == NULL) {
@@ -365,17 +362,16 @@ enum error_code config_load(struct engine_config *c, const char *path,
     return ERR_OK;
 }
 
-static enum error_code copy_arg(char *dst, size_t size, const char *src,
-                                const char *opt, struct error_info *e) {
+static error_code_mt copy_arg(char *dst, size_t size, const char *src,
+                              const char *opt, error_info_mt *e) {
     if (strlen(src) >= size)
         return error_fail(e, ERR_ARGS, opt, "value too long");
     memcpy(dst, src, strlen(src) + 1);
     return ERR_OK;
 }
 
-enum error_code config_apply_args(struct engine_config *c,
-                                  const struct cli_opts *opts,
-                                  struct error_info *e) {
+error_code_mt config_apply_args(engine_config_mt *c, const cli_opts_mt *opts,
+                                error_info_mt *e) {
     if (opts->source &&
         copy_arg(c->source, sizeof c->source, opts->source, "-i", e) != ERR_OK)
         return e->code;
@@ -385,9 +381,9 @@ enum error_code config_apply_args(struct engine_config *c,
     return ERR_OK;
 }
 
-static enum error_code range_fail(struct error_info *e, const char *key,
-                                  unsigned long long min,
-                                  unsigned long long max) {
+static error_code_mt range_fail(error_info_mt *e, const char *key,
+                                unsigned long long min,
+                                unsigned long long max) {
     char why[96];
 
     snprintf(why, sizeof why, "must be between %llu and %llu", min, max);
@@ -405,7 +401,7 @@ static int looks_like_file(const char *source) {
            ends_with(source, ".pcapng");
 }
 
-enum error_code config_validate(struct engine_config *c, struct error_info *e) {
+error_code_mt config_validate(engine_config_mt *c, error_info_mt *e) {
     struct stat sb;
 
     if (c->source[0] == '\0')
@@ -441,7 +437,7 @@ enum error_code config_validate(struct engine_config *c, struct error_info *e) {
     return ERR_OK;
 }
 
-void config_print(const struct engine_config *c, const char *path) {
+void config_print(const engine_config_mt *c, const char *path) {
     printf("config:   %s\n", path ? path : "(built-in defaults)");
     printf("source:   %s (%s)\n", c->source, c->is_file ? "file" : "live");
     printf("filter:   %s\n", c->filter[0] ? c->filter : "(none)");

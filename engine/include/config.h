@@ -29,14 +29,14 @@
 #define SCHED_US_MIN 10
 #define SCHED_US_MAX 1000000
 
-struct cli_opts {
+typedef struct cli_opts {
     const char *config;
     const char *source;
     const char *filter;
     int help;
-};
+} cli_opts_mt;
 
-struct engine_config {
+typedef struct engine_config {
     char source[CFG_SOURCE_MAX];
     char filter[CFG_FILTER_MAX];
     int is_file;
@@ -48,21 +48,20 @@ struct engine_config {
     uint64_t cap_deadline_us;
     uint64_t cap_period_us;
     int file_loaded;
-};
+} engine_config_mt;
 
-void config_defaults(struct engine_config *c);
+void config_defaults(engine_config_mt *c);
 
-enum error_code config_check_perms(const char *path, struct error_info *e);
+error_code_mt config_check_perms(const char *path, error_info_mt *e);
 
-enum error_code config_load(struct engine_config *c, const char *path,
-                            int required, struct error_info *e);
+error_code_mt config_load(engine_config_mt *c, const char *path, int required,
+                          error_info_mt *e);
 
-enum error_code config_apply_args(struct engine_config *c,
-                                  const struct cli_opts *opts,
-                                  struct error_info *e);
+error_code_mt config_apply_args(engine_config_mt *c, const cli_opts_mt *opts,
+                                error_info_mt *e);
 
-enum error_code config_validate(struct engine_config *c, struct error_info *e);
+error_code_mt config_validate(engine_config_mt *c, error_info_mt *e);
 
-void config_print(const struct engine_config *c, const char *path);
+void config_print(const engine_config_mt *c, const char *path);
 
 #endif
