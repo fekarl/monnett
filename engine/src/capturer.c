@@ -41,7 +41,6 @@ static error_code_mt open_live(capture_mt *c, const engine_config_mt *cfg,
     if (rc > 0)
         fprintf(stderr, "monnett: warning: %s: %s\n", cfg->source,
                 pcap_statustostr(rc));
-
     if (strcmp(cfg->source, "any") == 0)
         pcap_set_datalink(c->p, DLT_LINUX_SLL2);
     return ERR_OK;

@@ -23,6 +23,7 @@ typedef struct capture {
     pcap_t *p;
     int is_file;
     int linktype;
+    int ts_nano;
     atomic_int running;
     atomic_int done;
     struct pcap_stat last;
