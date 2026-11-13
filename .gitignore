@@ -1,5 +1,9 @@
-.key
-/build
-*.o 
+build/
+*.o
 *.d
+__pycache__/
+*.pyc
+.venv/
+logs/
+.key
 note.txt
