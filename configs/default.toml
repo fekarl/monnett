@@ -1,0 +1,15 @@
+[common]
+socket = "/run/monnett.sock"
+
+[engine]
+source = "enp34s0"
+filter = ""
+promisc = true
+timeout_ms = 100
+buffer_mb = 64
+pool_slots = 8192
+cap_runtime_us = 200
+cap_deadline_us = 1000
+cap_period_us = 1000
+
+[analyzer]
