@@ -1,5 +1,0 @@
-[engine]
-source = "lo"
-cap_runtime_us = 2000
-cap_deadline_us = 1000
-cap_period_us = 1000
