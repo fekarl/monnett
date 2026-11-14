@@ -2,7 +2,7 @@
 socket = "/run/monnett.sock"
 
 [engine]
-source = "enp34s0"
+source = "enp0s3"
 filter = ""
 promisc = true
 timeout_ms = 100

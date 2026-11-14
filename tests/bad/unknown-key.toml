@@ -1,0 +1,3 @@
+[engine]
+source = "lo"
+snaplen = 65535

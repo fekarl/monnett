@@ -42,53 +42,54 @@ typedef struct parser {
     int in_engine;
     int seen_engine;
     int seen[KEY_COUNT];
-    error_info_mt *e;
+    error_info_mt *einf;
 } parser_mt;
 
-void config_defaults(engine_config_mt *c) {
-    memset(c, 0, sizeof *c);
-    snprintf(c->source, sizeof c->source, "%s", DEF_SOURCE);
-    snprintf(c->filter, sizeof c->filter, "%s", DEF_FILTER);
-    c->promisc = DEF_PROMISC;
-    c->timeout_ms = DEF_TIMEOUT_MS;
-    c->buffer_mb = DEF_BUFFER_MB;
-    c->pool_slots = DEF_POOL_SLOTS;
-    c->cap_runtime_us = DEF_CAP_RUNTIME_US;
-    c->cap_deadline_us = DEF_CAP_DEADLINE_US;
-    c->cap_period_us = DEF_CAP_PERIOD_US;
+void config_defaults(engine_config_mt *cfg) {
+    memset(cfg, 0, sizeof *cfg);
+    snprintf(cfg->source, sizeof cfg->source, "%s", DEF_SOURCE);
+    snprintf(cfg->filter, sizeof cfg->filter, "%s", DEF_FILTER);
+    cfg->promisc = DEF_PROMISC;
+    cfg->timeout_ms = DEF_TIMEOUT_MS;
+    cfg->buffer_mb = DEF_BUFFER_MB;
+    cfg->pool_slots = DEF_POOL_SLOTS;
+    cfg->cap_runtime_us = DEF_CAP_RUNTIME_US;
+    cfg->cap_deadline_us = DEF_CAP_DEADLINE_US;
+    cfg->cap_period_us = DEF_CAP_PERIOD_US;
 }
 
-error_code_mt config_check_perms(const char *path, error_info_mt *e) {
-    struct stat sb;
+error_code_mt config_check_perms(const char *path, error_info_mt *einf) {
+    struct stat finfo;
 
-    if (stat(path, &sb) != 0) {
+    if (stat(path, &finfo) != 0) {
         if (errno == ENOENT)
             return ERR_OK;
-        return error_fail(e, ERR_CONFIG, path, strerror(errno));
+        return error_fail(einf, ERR_CONFIG, path, strerror(errno));
     }
-    if (!S_ISREG(sb.st_mode))
-        return error_fail(e, ERR_CONFIG, path, "not a regular file");
-    if (sb.st_uid != 0 && sb.st_uid != getuid())
-        return error_fail(e, ERR_CONFIG_PERMS, path,
+    if (!S_ISREG(finfo.st_mode))
+        return error_fail(einf, ERR_CONFIG, path, "not a regular file");
+    if (finfo.st_uid != 0 && finfo.st_uid != getuid())
+        return error_fail(einf, ERR_CONFIG_PERMS, path,
                           "must be owned by root or by you");
-    if (sb.st_mode & (S_IWGRP | S_IWOTH))
-        return error_fail(e, ERR_CONFIG_PERMS, path,
+    if (finfo.st_mode & (S_IWGRP | S_IWOTH))
+        return error_fail(einf, ERR_CONFIG_PERMS, path,
                           "writable by group or others (chmod go-w)");
     return ERR_OK;
 }
 
-static error_code_mt parse_fail(parser_mt *p, const char *why) {
+static error_code_mt parse_fail(parser_mt *prs, const char *why) {
     char where[CFG_SOURCE_MAX + 16];
 
-    snprintf(where, sizeof where, "%s:%d", p->path, p->line);
-    return error_fail(p->e, ERR_CONFIG, where, why);
+    snprintf(where, sizeof where, "%s:%d", prs->path, prs->line);
+    return error_fail(prs->einf, ERR_CONFIG, where, why);
 }
 
-static error_code_mt key_fail(parser_mt *p, const char *why, const char *key) {
+static error_code_mt key_fail(parser_mt *prs, const char *why,
+                              const char *key) {
     char msg[128];
 
     snprintf(msg, sizeof msg, "%s '%s'", why, key);
-    return parse_fail(p, msg);
+    return parse_fail(prs, msg);
 }
 
 static char *skip_space(char *s) {
@@ -109,16 +110,16 @@ static int find_key(const char *name) {
     return -1;
 }
 
-static error_code_mt read_string(parser_mt *p, char **s, char *out,
+static error_code_mt read_string(parser_mt *prs, char **str, char *out,
                                  size_t size) {
-    char *r = *s + 1;
+    char *r = *str + 1;
     size_t n = 0;
 
     while (*r != '"') {
         char ch = *r;
 
         if (ch == '\0')
-            return parse_fail(p, "unterminated string");
+            return parse_fail(prs, "unterminated string");
         if (ch == '\\') {
             r++;
             switch (*r) {
@@ -135,32 +136,33 @@ static error_code_mt read_string(parser_mt *p, char **s, char *out,
                 ch = '\n';
                 break;
             default:
-                return parse_fail(p, "unknown escape in string");
+                return parse_fail(prs, "unknown escape in string");
             }
         }
         if (n + 1 >= size)
-            return parse_fail(p, "string too long");
+            return parse_fail(prs, "string too long");
         out[n++] = ch;
         r++;
     }
     out[n] = '\0';
-    *s = r + 1;
+    *str = r + 1;
     return ERR_OK;
 }
 
-static error_code_mt read_bare(parser_mt *p, char **s, char *out, size_t size) {
-    char *r = *s;
+static error_code_mt read_bare(parser_mt *prs, char **str, char *out,
+                               size_t size) {
+    char *r = *str;
     size_t n = 0;
 
     while (*r != '\0' && *r != ' ' && *r != '\t' && *r != '#') {
         if (n + 1 >= size)
-            return parse_fail(p, "value too long");
+            return parse_fail(prs, "value too long");
         out[n++] = *r++;
     }
     if (n == 0)
-        return parse_fail(p, "missing value");
+        return parse_fail(prs, "missing value");
     out[n] = '\0';
-    *s = r;
+    *str = r;
     return ERR_OK;
 }
 
@@ -178,57 +180,58 @@ static int parse_uint(const char *text, unsigned long long max,
     return 0;
 }
 
-static error_code_mt set_value(parser_mt *p, engine_config_mt *c, int key,
+static error_code_mt set_value(parser_mt *prs, engine_config_mt *cfg, int key,
                                int quoted, const char *text) {
-    unsigned long long v = 0;
+    unsigned long long num = 0;
     const char *name = key_names[key];
 
     if (key == KEY_SOURCE || key == KEY_FILTER) {
         if (!quoted)
-            return key_fail(p, "expected a \"string\" for", name);
-        char *dst = key == KEY_SOURCE ? c->source : c->filter;
-        size_t size = key == KEY_SOURCE ? sizeof c->source : sizeof c->filter;
+            return key_fail(prs, "expected a \"string\" for", name);
+        char *dst = key == KEY_SOURCE ? cfg->source : cfg->filter;
+        size_t size =
+            key == KEY_SOURCE ? sizeof cfg->source : sizeof cfg->filter;
 
         if (strlen(text) >= size)
-            return key_fail(p, "value too long for", name);
+            return key_fail(prs, "value too long for", name);
         memcpy(dst, text, strlen(text) + 1);
         return ERR_OK;
     }
 
     if (quoted)
-        return key_fail(p, "expected a value without quotes for", name);
+        return key_fail(prs, "expected a value without quotes for", name);
 
     if (key == KEY_PROMISC) {
         if (strcmp(text, "true") == 0)
-            c->promisc = 1;
+            cfg->promisc = 1;
         else if (strcmp(text, "false") == 0)
-            c->promisc = 0;
+            cfg->promisc = 0;
         else
-            return key_fail(p, "expected true or false for", name);
+            return key_fail(prs, "expected true or false for", name);
         return ERR_OK;
     }
 
-    if (parse_uint(text, INT_MAX, &v) != 0)
-        return key_fail(p, "expected a whole number for", name);
+    if (parse_uint(text, INT_MAX, &num) != 0)
+        return key_fail(prs, "expected a whole number for", name);
 
     switch (key) {
     case KEY_TIMEOUT_MS:
-        c->timeout_ms = (int)v;
+        cfg->timeout_ms = (int)num;
         break;
     case KEY_BUFFER_MB:
-        c->buffer_mb = (int)v;
+        cfg->buffer_mb = (int)num;
         break;
     case KEY_POOL_SLOTS:
-        c->pool_slots = (uint32_t)v;
+        cfg->pool_slots = (uint32_t)num;
         break;
     case KEY_CAP_RUNTIME_US:
-        c->cap_runtime_us = v;
+        cfg->cap_runtime_us = num;
         break;
     case KEY_CAP_DEADLINE_US:
-        c->cap_deadline_us = v;
+        cfg->cap_deadline_us = num;
         break;
     case KEY_CAP_PERIOD_US:
-        c->cap_period_us = v;
+        cfg->cap_period_us = num;
         break;
     default:
         break;
@@ -236,158 +239,159 @@ static error_code_mt set_value(parser_mt *p, engine_config_mt *c, int key,
     return ERR_OK;
 }
 
-static error_code_mt parse_section(parser_mt *p, char *s) {
-    char *end = strchr(s, ']');
+static error_code_mt parse_section(parser_mt *prs, char *str) {
+    char *end = strchr(str, ']');
 
     if (end == NULL)
-        return parse_fail(p, "missing ']'");
+        return parse_fail(prs, "missing ']'");
     *end = '\0';
 
     char *rest = skip_space(end + 1);
     if (*rest != '\0' && *rest != '#')
-        return parse_fail(p, "text after ']'");
+        return parse_fail(prs, "text after ']'");
 
-    char *name = skip_space(s + 1);
+    char *name = skip_space(str + 1);
     char *tail = name + strlen(name);
     while (tail > name && (tail[-1] == ' ' || tail[-1] == '\t'))
         *--tail = '\0';
 
-    p->in_engine = (strcmp(name, "engine") == 0);
-    if (p->in_engine) {
-        if (p->seen_engine)
-            return parse_fail(p, "[engine] appears twice");
-        p->seen_engine = 1;
+    prs->in_engine = (strcmp(name, "engine") == 0);
+    if (prs->in_engine) {
+        if (prs->seen_engine)
+            return parse_fail(prs, "[engine] appears twice");
+        prs->seen_engine = 1;
     }
     return ERR_OK;
 }
 
-static error_code_mt parse_key_value(parser_mt *p, engine_config_mt *c,
-                                     char *s) {
+static error_code_mt parse_key_value(parser_mt *prs, engine_config_mt *cfg,
+                                     char *str) {
     char name[64];
     char value[CFG_FILTER_MAX];
-    size_t n = 0;
+    size_t len = 0;
     int quoted;
     error_code_mt rc;
 
-    while (is_key_char(*s)) {
-        if (n + 1 >= sizeof name)
-            return parse_fail(p, "key too long");
-        name[n++] = *s++;
+    while (is_key_char(*str)) {
+        if (len + 1 >= sizeof name)
+            return parse_fail(prs, "key too long");
+        name[len++] = *str++;
     }
-    name[n] = '\0';
-    if (n == 0)
-        return parse_fail(p, "expected a key");
+    name[len] = '\0';
+    if (len == 0)
+        return parse_fail(prs, "expected a key");
 
-    s = skip_space(s);
-    if (*s != '=')
-        return key_fail(p, "expected '=' after", name);
-    s = skip_space(s + 1);
+    str = skip_space(str);
+    if (*str != '=')
+        return key_fail(prs, "expected '=' after", name);
+    str = skip_space(str + 1);
 
-    quoted = (*s == '"');
+    quoted = (*str == '"');
     if (quoted)
-        rc = read_string(p, &s, value, sizeof value);
+        rc = read_string(prs, &str, value, sizeof value);
     else
-        rc = read_bare(p, &s, value, sizeof value);
+        rc = read_bare(prs, &str, value, sizeof value);
     if (rc != ERR_OK)
         return rc;
 
-    s = skip_space(s);
-    if (*s != '\0' && *s != '#')
-        return key_fail(p, "unexpected text after the value of", name);
+    str = skip_space(str);
+    if (*str != '\0' && *str != '#')
+        return key_fail(prs, "unexpected text after the value of", name);
 
     int key = find_key(name);
     if (key < 0)
-        return key_fail(p, "unknown key", name);
-    if (p->seen[key])
-        return key_fail(p, "duplicate key", name);
-    p->seen[key] = 1;
+        return key_fail(prs, "unknown key", name);
+    if (prs->seen[key])
+        return key_fail(prs, "duplicate key", name);
+    prs->seen[key] = 1;
 
-    return set_value(p, c, key, quoted, value);
+    return set_value(prs, cfg, key, quoted, value);
 }
 
-static error_code_mt parse_line(parser_mt *p, engine_config_mt *c, char *line) {
-    char *s = skip_space(line);
+static error_code_mt parse_line(parser_mt *prs, engine_config_mt *cfg,
+                                char *line) {
+    char *str = skip_space(line);
 
-    if (*s == '\0' || *s == '#')
+    if (*str == '\0' || *str == '#')
         return ERR_OK;
-    if (*s == '[')
-        return parse_section(p, s);
-    if (!p->in_engine)
+    if (*str == '[')
+        return parse_section(prs, str);
+    if (!prs->in_engine)
         return ERR_OK;
-    return parse_key_value(p, c, s);
+    return parse_key_value(prs, cfg, str);
 }
 
 static void warn(const char *path, const char *why) {
     fprintf(stderr, "monnett: warning: %s: %s\n", path, why);
 }
 
-error_code_mt config_load(engine_config_mt *c, const char *path, int required,
-                          error_info_mt *e) {
-    parser_mt p = {.path = path, .e = e};
+error_code_mt config_load(engine_config_mt *cfg, const char *path, int required,
+                          error_info_mt *einf) {
+    parser_mt prs = {.path = path, .einf = einf};
     char line[LINE_MAX_LEN];
     error_code_mt rc = ERR_OK;
 
-    FILE *f = fopen(path, "r");
-    if (f == NULL) {
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
         if (errno == ENOENT && !required) {
             warn(path, "not found, using built-in defaults");
             return ERR_OK;
         }
-        return error_fail(e, ERR_CONFIG, path, strerror(errno));
+        return error_fail(einf, ERR_CONFIG, path, strerror(errno));
     }
 
-    while (rc == ERR_OK && fgets(line, sizeof line, f) != NULL) {
+    while (rc == ERR_OK && fgets(line, sizeof line, file) != NULL) {
         size_t len = strlen(line);
 
-        p.line++;
+        prs.line++;
         if (len > 0 && line[len - 1] == '\n')
             line[--len] = '\0';
-        else if (!feof(f))
-            rc = parse_fail(&p, "line too long");
+        else if (!feof(file))
+            rc = parse_fail(&prs, "line too long");
         if (rc == ERR_OK && len > 0 && line[len - 1] == '\r')
             line[--len] = '\0';
         if (rc == ERR_OK)
-            rc = parse_line(&p, c, line);
+            rc = parse_line(&prs, cfg, line);
     }
 
-    if (rc == ERR_OK && ferror(f))
-        rc = error_fail(e, ERR_CONFIG, path, "read error");
-    fclose(f);
+    if (rc == ERR_OK && ferror(file))
+        rc = error_fail(einf, ERR_CONFIG, path, "read error");
+    fclose(file);
 
     if (rc != ERR_OK)
         return rc;
-    if (!p.seen_engine)
+    if (!prs.seen_engine)
         warn(path, "no [engine] section, using built-in defaults");
-    c->file_loaded = 1;
+    cfg->file_loaded = 1;
     return ERR_OK;
 }
 
 static error_code_mt copy_arg(char *dst, size_t size, const char *src,
-                              const char *opt, error_info_mt *e) {
+                              const char *opt, error_info_mt *einf) {
     if (strlen(src) >= size)
-        return error_fail(e, ERR_ARGS, opt, "value too long");
+        return error_fail(einf, ERR_ARGS, opt, "value too long");
     memcpy(dst, src, strlen(src) + 1);
     return ERR_OK;
 }
 
-error_code_mt config_apply_args(engine_config_mt *c, const cli_opts_mt *opts,
-                                error_info_mt *e) {
-    if (opts->source &&
-        copy_arg(c->source, sizeof c->source, opts->source, "-i", e) != ERR_OK)
-        return e->code;
-    if (opts->filter &&
-        copy_arg(c->filter, sizeof c->filter, opts->filter, "-f", e) != ERR_OK)
-        return e->code;
+error_code_mt config_apply_args(engine_config_mt *cfg, const cli_opts_mt *opts,
+                                error_info_mt *einf) {
+    if (opts->source && copy_arg(cfg->source, sizeof cfg->source, opts->source,
+                                 "-i", einf) != ERR_OK)
+        return einf->code;
+    if (opts->filter && copy_arg(cfg->filter, sizeof cfg->filter, opts->filter,
+                                 "-f", einf) != ERR_OK)
+        return einf->code;
     return ERR_OK;
 }
 
-static error_code_mt range_fail(error_info_mt *e, const char *key,
+static error_code_mt range_fail(error_info_mt *einf, const char *key,
                                 unsigned long long min,
                                 unsigned long long max) {
     char why[96];
 
     snprintf(why, sizeof why, "must be between %llu and %llu", min, max);
-    return error_fail(e, ERR_CONFIG, key, why);
+    return error_fail(einf, ERR_CONFIG, key, why);
 }
 
 static int ends_with(const char *s, const char *suffix) {
@@ -401,54 +405,57 @@ static int looks_like_file(const char *source) {
            ends_with(source, ".pcapng");
 }
 
-error_code_mt config_validate(engine_config_mt *c, error_info_mt *e) {
-    struct stat sb;
+error_code_mt config_validate(engine_config_mt *cfg, error_info_mt *einf) {
+    struct stat finfo;
 
-    if (c->source[0] == '\0')
-        return error_fail(e, ERR_CONFIG, "source", "is empty");
+    if (cfg->source[0] == '\0')
+        return error_fail(einf, ERR_CONFIG, "source", "is empty");
 
-    if (c->timeout_ms < TIMEOUT_MS_MIN || c->timeout_ms > TIMEOUT_MS_MAX)
-        return range_fail(e, "timeout_ms", TIMEOUT_MS_MIN, TIMEOUT_MS_MAX);
-    if (c->buffer_mb < BUFFER_MB_MIN || c->buffer_mb > BUFFER_MB_MAX)
-        return range_fail(e, "buffer_mb", BUFFER_MB_MIN, BUFFER_MB_MAX);
-    if (c->pool_slots < POOL_SLOTS_MIN || c->pool_slots > POOL_SLOTS_MAX)
-        return range_fail(e, "pool_slots", POOL_SLOTS_MIN, POOL_SLOTS_MAX);
+    if (cfg->timeout_ms < TIMEOUT_MS_MIN || cfg->timeout_ms > TIMEOUT_MS_MAX)
+        return range_fail(einf, "timeout_ms", TIMEOUT_MS_MIN, TIMEOUT_MS_MAX);
+    if (cfg->buffer_mb < BUFFER_MB_MIN || cfg->buffer_mb > BUFFER_MB_MAX)
+        return range_fail(einf, "buffer_mb", BUFFER_MB_MIN, BUFFER_MB_MAX);
+    if (cfg->pool_slots < POOL_SLOTS_MIN || cfg->pool_slots > POOL_SLOTS_MAX)
+        return range_fail(einf, "pool_slots", POOL_SLOTS_MIN, POOL_SLOTS_MAX);
 
-    if (c->cap_runtime_us < SCHED_US_MIN || c->cap_runtime_us > SCHED_US_MAX)
-        return range_fail(e, "cap_runtime_us", SCHED_US_MIN, SCHED_US_MAX);
-    if (c->cap_deadline_us < SCHED_US_MIN || c->cap_deadline_us > SCHED_US_MAX)
-        return range_fail(e, "cap_deadline_us", SCHED_US_MIN, SCHED_US_MAX);
-    if (c->cap_period_us < SCHED_US_MIN || c->cap_period_us > SCHED_US_MAX)
-        return range_fail(e, "cap_period_us", SCHED_US_MIN, SCHED_US_MAX);
-    if (c->cap_runtime_us > c->cap_deadline_us ||
-        c->cap_deadline_us > c->cap_period_us)
-        return error_fail(e, ERR_CONFIG, "cap_*_us",
+    if (cfg->cap_runtime_us < SCHED_US_MIN ||
+        cfg->cap_runtime_us > SCHED_US_MAX)
+        return range_fail(einf, "cap_runtime_us", SCHED_US_MIN, SCHED_US_MAX);
+    if (cfg->cap_deadline_us < SCHED_US_MIN ||
+        cfg->cap_deadline_us > SCHED_US_MAX)
+        return range_fail(einf, "cap_deadline_us", SCHED_US_MIN, SCHED_US_MAX);
+    if (cfg->cap_period_us < SCHED_US_MIN || cfg->cap_period_us > SCHED_US_MAX)
+        return range_fail(einf, "cap_period_us", SCHED_US_MIN, SCHED_US_MAX);
+    if (cfg->cap_runtime_us > cfg->cap_deadline_us ||
+        cfg->cap_deadline_us > cfg->cap_period_us)
+        return error_fail(einf, ERR_CONFIG, "cap_*_us",
                           "need runtime <= deadline <= period");
 
-    if (stat(c->source, &sb) == 0) {
-        if (!S_ISREG(sb.st_mode))
-            return error_fail(e, ERR_CONFIG, c->source, "not a regular file");
-        c->is_file = 1;
+    if (stat(cfg->source, &finfo) == 0) {
+        if (!S_ISREG(finfo.st_mode))
+            return error_fail(einf, ERR_CONFIG, cfg->source,
+                              "not a regular file");
+        cfg->is_file = 1;
     } else {
-        if (looks_like_file(c->source))
-            return error_fail(e, ERR_CONFIG, c->source, strerror(errno));
-        c->is_file = 0;
+        if (looks_like_file(cfg->source))
+            return error_fail(einf, ERR_CONFIG, cfg->source, strerror(errno));
+        cfg->is_file = 0;
     }
     return ERR_OK;
 }
 
-void config_print(const engine_config_mt *c, const char *path) {
+void config_print(const engine_config_mt *cfg, const char *path) {
     printf("config:   %s\n", path ? path : "(built-in defaults)");
-    printf("source:   %s (%s)\n", c->source, c->is_file ? "file" : "live");
-    printf("filter:   %s\n", c->filter[0] ? c->filter : "(none)");
-    if (!c->is_file) {
-        printf("promisc:  %s\n", c->promisc ? "on" : "off");
-        printf("buffer:   %d MiB\n", c->buffer_mb);
-        printf("timeout:  %d ms\n", c->timeout_ms);
+    printf("source:   %s (%s)\n", cfg->source, cfg->is_file ? "file" : "live");
+    printf("filter:   %s\n", cfg->filter[0] ? cfg->filter : "(none)");
+    if (!cfg->is_file) {
+        printf("promisc:  %s\n", cfg->promisc ? "on" : "off");
+        printf("buffer:   %d MiB\n", cfg->buffer_mb);
+        printf("timeout:  %d ms\n", cfg->timeout_ms);
     }
-    printf("pool:     %u slots\n", (unsigned)c->pool_slots);
+    printf("pool:     %u slots\n", (unsigned)cfg->pool_slots);
     printf("deadline: runtime %llu us, deadline %llu us, period %llu us\n",
-           (unsigned long long)c->cap_runtime_us,
-           (unsigned long long)c->cap_deadline_us,
-           (unsigned long long)c->cap_period_us);
+           (unsigned long long)cfg->cap_runtime_us,
+           (unsigned long long)cfg->cap_deadline_us,
+           (unsigned long long)cfg->cap_period_us);
 }

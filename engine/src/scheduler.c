@@ -44,26 +44,26 @@ static void sleep_ms(int ms) {
         ;
 }
 
-void scheduler_startup_init(scheduler_startup_mt *s, int nthreads) {
+void scheduler_startup_init(scheduler_startup_mt *startup, int nthreads) {
     pthread_condattr_t attr;
 
-    memset(s, 0, sizeof *s);
-    s->expected = nthreads;
+    memset(startup, 0, sizeof *startup);
+    startup->expected = nthreads;
 
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    pthread_mutex_init(&s->m, NULL);
-    pthread_cond_init(&s->cv, &attr);
+    pthread_mutex_init(&startup->lock, NULL);
+    pthread_cond_init(&startup->cond, &attr);
     pthread_condattr_destroy(&attr);
 }
 
-void scheduler_startup_destroy(scheduler_startup_mt *s) {
-    pthread_cond_destroy(&s->cv);
-    pthread_mutex_destroy(&s->m);
+void scheduler_startup_destroy(scheduler_startup_mt *startup) {
+    pthread_cond_destroy(&startup->cond);
+    pthread_mutex_destroy(&startup->lock);
 }
 
 error_code_mt scheduler_set_deadline(uint64_t runtime_ns, uint64_t deadline_ns,
-                                     uint64_t period_ns, error_info_mt *e) {
+                                     uint64_t period_ns, error_info_mt *einf) {
     deadline_attr_mt attr;
 
     memset(&attr, 0, sizeof attr);
@@ -77,63 +77,65 @@ error_code_mt scheduler_set_deadline(uint64_t runtime_ns, uint64_t deadline_ns,
         if (syscall(SYS_sched_setattr, 0, &attr, 0) == 0)
             return ERR_OK;
         if (errno != EBUSY)
-            return error_fail(e, ERR_SCHED_PERM, "sched_setattr",
+            return error_fail(einf, ERR_SCHED_PERM, "sched_setattr",
                               strerror(errno));
         sleep_ms(DEADLINE_RETRY_MS);
     }
-    return error_fail(e, ERR_SCHED_BUSY, "sched_setattr",
+    return error_fail(einf, ERR_SCHED_BUSY, "sched_setattr",
                       "not enough CPU bandwidth (EBUSY after 3 tries)");
 }
 
-error_code_mt scheduler_drop_caps(error_info_mt *e) {
+error_code_mt scheduler_drop_caps(error_info_mt *einf) {
     cap_t caps = cap_init();
 
     if (caps == NULL)
-        return error_fail(e, ERR_CAPS, "cap_init", strerror(errno));
+        return error_fail(einf, ERR_CAPS, "cap_init", strerror(errno));
     if (cap_set_proc(caps) != 0) {
         int err = errno;
         cap_free(caps);
         errno = err;
-        return error_fail(e, ERR_CAPS, "cap_set_proc", strerror(err));
+        return error_fail(einf, ERR_CAPS, "cap_set_proc", strerror(err));
     }
     cap_free(caps);
     return ERR_OK;
 }
 
-void scheduler_report(scheduler_startup_mt *s, const error_info_mt *e) {
-    pthread_mutex_lock(&s->m);
-    if (e != NULL && e->code != ERR_OK) {
-        if (!s->failed) {
-            s->failed = 1;
-            s->first_err = *e;
+void scheduler_report(scheduler_startup_mt *startup,
+                      const error_info_mt *einf) {
+    pthread_mutex_lock(&startup->lock);
+    if (einf != NULL && einf->code != ERR_OK) {
+        if (!startup->failed) {
+            startup->failed = 1;
+            startup->first_einf = *einf;
         }
     } else {
-        s->ready++;
+        startup->ready++;
     }
-    pthread_cond_broadcast(&s->cv);
-    pthread_mutex_unlock(&s->m);
+    pthread_cond_broadcast(&startup->cond);
+    pthread_mutex_unlock(&startup->lock);
 }
 
-error_code_mt scheduler_wait_all(scheduler_startup_mt *s, int timeout_ms,
-                                 error_info_mt *e) {
+error_code_mt scheduler_wait_all(scheduler_startup_mt *startup, int timeout_ms,
+                                 error_info_mt *einf) {
     struct timespec until;
     int timed_out = 0;
 
     deadline_after(&until, timeout_ms);
 
-    pthread_mutex_lock(&s->m);
-    while (!s->failed && s->ready < s->expected && !timed_out)
-        if (pthread_cond_timedwait(&s->cv, &s->m, &until) == ETIMEDOUT)
+    pthread_mutex_lock(&startup->lock);
+    while (!startup->failed && startup->ready < startup->expected && !timed_out)
+        if (pthread_cond_timedwait(&startup->cond, &startup->lock, &until) ==
+            ETIMEDOUT)
             timed_out = 1;
 
     error_code_mt rc = ERR_OK;
-    if (s->failed) {
-        *e = s->first_err;
-        rc = e->code;
-    } else if (s->ready < s->expected) {
-        rc = error_fail(e, ERR_THREAD, "startup",
+    if (startup->failed) {
+        *einf = startup->first_einf;
+        rc = einf->code;
+    } else if (startup->ready < startup->expected) {
+        rc = error_fail(einf, ERR_THREAD, "startup",
                         "threads did not report in time");
     }
-    pthread_mutex_unlock(&s->m);
+    pthread_mutex_unlock(&startup->lock);
     return rc;
 }

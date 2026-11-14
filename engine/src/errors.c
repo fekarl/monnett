@@ -25,38 +25,38 @@ static const char *const error_names[] = {
 #define COLOR_RED "\033[1;31m"
 #define COLOR_RESET "\033[0m"
 
-enum error_code error_fail(struct error_info *e, enum error_code code,
-                           const char *what, const char *why) {
+error_code_mt error_fail(error_info_mt *einf, error_code_mt code,
+                         const char *what, const char *why) {
     int saved_errno = errno;
 
-    e->code = code;
-    e->sys_errno = saved_errno;
+    einf->code = code;
+    einf->sys_errno = saved_errno;
 
     if (what && why)
-        snprintf(e->msg, sizeof e->msg, "%s: %s", what, why);
+        snprintf(einf->msg, sizeof einf->msg, "%s: %s", what, why);
     else if (what)
-        snprintf(e->msg, sizeof e->msg, "%s", what);
+        snprintf(einf->msg, sizeof einf->msg, "%s", what);
     else
-        e->msg[0] = '\0';
+        einf->msg[0] = '\0';
 
     errno = saved_errno;
     return code;
 }
 
-const char *error_str(enum error_code code) {
+const char *error_str(error_code_mt code) {
     if ((unsigned)code >= N_ERROR_NAMES || error_names[code] == NULL)
         return "unknown error";
     return error_names[code];
 }
 
-void error_print(const struct error_info *e) {
+void error_print(const error_info_mt *einf) {
     int color = isatty(STDERR_FILENO);
     const char *on = color ? COLOR_RED : "";
     const char *off = color ? COLOR_RESET : "";
 
-    if (e->msg[0] != '\0')
-        fprintf(stderr, "%smonnett: %s: %s%s\n", on, error_str(e->code), e->msg,
-                off);
+    if (einf->msg[0] != '\0')
+        fprintf(stderr, "%smonnett: %s: %s%s\n", on, error_str(einf->code),
+                einf->msg, off);
     else
-        fprintf(stderr, "%smonnett: %s%s\n", on, error_str(e->code), off);
+        fprintf(stderr, "%smonnett: %s%s\n", on, error_str(einf->code), off);
 }

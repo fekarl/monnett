@@ -5,5 +5,4 @@ __pycache__/
 *.pyc
 .venv/
 logs/
-tests/
-note.txt
+notes/

@@ -17,10 +17,10 @@ typedef struct pkt_slot {
 } pkt_slot_mt;
 
 typedef struct pkt_ring {
-    pkt_slot_mt **buf;
-    uint32_t cap, head, tail, count;
+    pkt_slot_mt **items;
+    uint32_t capacity, head, tail, count;
     int closed;
-    pthread_mutex_t m;
+    pthread_mutex_t lock;
     pthread_cond_t not_empty, not_full;
 } pkt_ring_mt;
 
@@ -30,9 +30,10 @@ typedef struct pkt_pool {
     pkt_ring_mt free;
 } pkt_pool_mt;
 
-error_code_mt pool_init(pkt_pool_mt *p, uint32_t nslots, error_info_mt *e);
-pkt_slot_mt *pool_get(pkt_pool_mt *p, int wait);
-void pool_put(pkt_pool_mt *p, pkt_slot_mt *s);
-void pool_destroy(pkt_pool_mt *p);
+error_code_mt pool_init(pkt_pool_mt *pool, uint32_t nslots,
+                        error_info_mt *einf);
+pkt_slot_mt *pool_get(pkt_pool_mt *pool, int wait);
+void pool_put(pkt_pool_mt *pool, pkt_slot_mt *slot);
+void pool_destroy(pkt_pool_mt *pool);
 
 #endif

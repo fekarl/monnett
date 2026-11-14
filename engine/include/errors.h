@@ -25,11 +25,11 @@ typedef struct error_info {
     char msg[ERR_MSG_MAX];
 } error_info_mt;
 
-error_code_mt error_fail(error_info_mt *e, error_code_mt code, const char *what,
-                         const char *why);
+error_code_mt error_fail(error_info_mt *einf, error_code_mt code,
+                         const char *what, const char *why);
 
 const char *error_str(error_code_mt code);
 
-void error_print(const error_info_mt *e);
+void error_print(const error_info_mt *einf);
 
 #endif

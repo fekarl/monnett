@@ -50,18 +50,18 @@ typedef struct engine_config {
     int file_loaded;
 } engine_config_mt;
 
-void config_defaults(engine_config_mt *c);
+void config_defaults(engine_config_mt *cfg);
 
-error_code_mt config_check_perms(const char *path, error_info_mt *e);
+error_code_mt config_check_perms(const char *path, error_info_mt *einf);
 
-error_code_mt config_load(engine_config_mt *c, const char *path, int required,
-                          error_info_mt *e);
+error_code_mt config_load(engine_config_mt *cfg, const char *path, int required,
+                          error_info_mt *einf);
 
-error_code_mt config_apply_args(engine_config_mt *c, const cli_opts_mt *opts,
-                                error_info_mt *e);
+error_code_mt config_apply_args(engine_config_mt *cfg, const cli_opts_mt *opts,
+                                error_info_mt *einf);
 
-error_code_mt config_validate(engine_config_mt *c, error_info_mt *e);
+error_code_mt config_validate(engine_config_mt *cfg, error_info_mt *einf);
 
-void config_print(const engine_config_mt *c, const char *path);
+void config_print(const engine_config_mt *cfg, const char *path);
 
 #endif
