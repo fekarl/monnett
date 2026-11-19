@@ -10,12 +10,12 @@ BUILD = build
 OBJ_D = $(BUILD)/obj
 BIN   = $(BUILD)/monnett
 
-SRCS = src/main.c      \
-       src/errors.c    \
-       src/config.c    \
-       src/scheduler.c \
-       src/pktring.c   \
-       src/capturer.c
+
+COMPONENTS = capturer
+
+SRCS = src/main.c \
+       $(sort $(wildcard src/common/*.c)) \
+       $(foreach c,$(COMPONENTS),$(sort $(wildcard src/components/$(c)/*.c)))
 
 OBJS = $(SRCS:src/%.c=$(OBJ_D)/%.o)
 
