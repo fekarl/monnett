@@ -6,8 +6,4 @@ __pycache__/
 .venv/
 logs/
 notes/
-
-tests/*
-!tests/engine/
-tests/engine/*
-!tests/engine/check.h
+tests/
