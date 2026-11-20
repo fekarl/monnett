@@ -10,7 +10,8 @@
 #define STATS_PERIOD_MS 1000
 
 static error_code_mt open_fail(capture_mt *cap, error_info_mt *einf,
-                               error_code_mt code, const char *what) {
+                               error_code_mt code, const char *what)
+{
     error_fail(einf, code, what, cap->errbuf);
     if (cap->pcap != NULL) {
         pcap_close(cap->pcap);
@@ -20,7 +21,8 @@ static error_code_mt open_fail(capture_mt *cap, error_info_mt *einf,
 }
 
 static error_code_mt open_live(capture_mt *cap, const engine_config_mt *cfg,
-                               error_info_mt *einf) {
+                               error_info_mt *einf)
+{
     cap->pcap = pcap_create(cfg->source, cap->errbuf);
     if (cap->pcap == NULL)
         return open_fail(cap, einf, ERR_OPEN, cfg->source);
@@ -48,7 +50,8 @@ static error_code_mt open_live(capture_mt *cap, const engine_config_mt *cfg,
 }
 
 static error_code_mt open_file(capture_mt *cap, const engine_config_mt *cfg,
-                               error_info_mt *einf) {
+                               error_info_mt *einf)
+{
     cap->pcap = pcap_open_offline_with_tstamp_precision(
         cfg->source, PCAP_TSTAMP_PRECISION_NANO, cap->errbuf);
     if (cap->pcap == NULL)
@@ -57,7 +60,8 @@ static error_code_mt open_file(capture_mt *cap, const engine_config_mt *cfg,
 }
 
 static error_code_mt check_linktype(capture_mt *cap, const char *source,
-                                    error_info_mt *einf) {
+                                    error_info_mt *einf)
+{
     cap->linktype = pcap_datalink(cap->pcap);
     if (cap->linktype == DLT_EN10MB || cap->linktype == DLT_LINUX_SLL2)
         return ERR_OK;
@@ -69,24 +73,28 @@ static error_code_mt check_linktype(capture_mt *cap, const char *source,
 }
 
 static error_code_mt set_filter(capture_mt *cap, const char *expr,
-                                error_info_mt *einf) {
+                                error_info_mt *einf)
+{
     struct bpf_program fp;
 
     if (pcap_compile(cap->pcap, &fp, expr, 1, PCAP_NETMASK_UNKNOWN) < 0) {
-        snprintf(cap->errbuf, sizeof cap->errbuf, "%s", pcap_geterr(cap->pcap));
+        snprintf(cap->errbuf, sizeof cap->errbuf, "%s",
+                 pcap_geterr(cap->pcap));
         return open_fail(cap, einf, ERR_FILTER, expr);
     }
     int rc = pcap_setfilter(cap->pcap, &fp);
     pcap_freecode(&fp);
     if (rc < 0) {
-        snprintf(cap->errbuf, sizeof cap->errbuf, "%s", pcap_geterr(cap->pcap));
+        snprintf(cap->errbuf, sizeof cap->errbuf, "%s",
+                 pcap_geterr(cap->pcap));
         return open_fail(cap, einf, ERR_FILTER, expr);
     }
     return ERR_OK;
 }
 
 error_code_mt cap_open(capture_mt *cap, const engine_config_mt *cfg,
-                       error_info_mt *einf) {
+                       error_info_mt *einf)
+{
     error_code_mt rc;
 
     memset(cap, 0, sizeof *cap);
@@ -110,9 +118,13 @@ error_code_mt cap_open(capture_mt *cap, const engine_config_mt *cfg,
     return ERR_OK;
 }
 
-const char *cap_error(const capture_mt *cap) { return cap->errbuf; }
+const char *cap_error(const capture_mt *cap)
+{
+    return cap->errbuf;
+}
 
-int cap_next(capture_mt *cap, pkt_slot_mt *slot) {
+int cap_next(capture_mt *cap, pkt_slot_mt *slot)
+{
     struct pcap_pkthdr *hdr;
     const u_char *pkt;
 
@@ -121,7 +133,8 @@ int cap_next(capture_mt *cap, pkt_slot_mt *slot) {
 
     int rc = pcap_next_ex(cap->pcap, &hdr, &pkt);
     if (rc == PCAP_ERROR) {
-        snprintf(cap->errbuf, sizeof cap->errbuf, "%s", pcap_geterr(cap->pcap));
+        snprintf(cap->errbuf, sizeof cap->errbuf, "%s",
+                 pcap_geterr(cap->pcap));
         return -1;
     }
     if (rc != 1)
@@ -149,7 +162,8 @@ int cap_next(capture_mt *cap, pkt_slot_mt *slot) {
     return 1;
 }
 
-void cap_poll_kernel_stats(capture_mt *cap) {
+void cap_poll_kernel_stats(capture_mt *cap)
+{
     struct pcap_stat st;
 
     if (cap->is_file || cap->pcap == NULL || pcap_stats(cap->pcap, &st) < 0)
@@ -163,7 +177,8 @@ void cap_poll_kernel_stats(capture_mt *cap) {
     cap->last_kstats = st;
 }
 
-void cap_snapshot(capture_mt *cap, cap_stats_mt *s) {
+void cap_snapshot(capture_mt *cap, cap_stats_mt *s)
+{
     s->captured = atomic_load(&cap->counters.captured);
     s->bytes = atomic_load(&cap->counters.bytes);
     s->engine_drop = atomic_load(&cap->counters.engine_drop);
@@ -173,26 +188,30 @@ void cap_snapshot(capture_mt *cap, cap_stats_mt *s) {
     s->k_ifdrop = atomic_load(&cap->counters.k_ifdrop);
 }
 
-void cap_stop(capture_mt *cap) {
+void cap_stop(capture_mt *cap)
+{
     atomic_store(&cap->running, 0);
     if (cap->pcap != NULL)
         pcap_breakloop(cap->pcap);
 }
 
-void cap_close(capture_mt *cap) {
+void cap_close(capture_mt *cap)
+{
     if (cap->pcap != NULL)
         pcap_close(cap->pcap);
     cap->pcap = NULL;
 }
 
-static uint64_t mono_ms(void) {
+static uint64_t mono_ms(void)
+{
     struct timespec t;
 
     clock_gettime(CLOCK_MONOTONIC, &t);
     return (uint64_t)t.tv_sec * 1000u + (uint64_t)t.tv_nsec / 1000000u;
 }
 
-static void capture_loop(capture_thread_args_mt *args) {
+static void capture_loop(capture_thread_args_mt *args)
+{
     capture_mt *cap = args->cap;
     uint64_t next_stats = mono_ms() + STATS_PERIOD_MS;
 
@@ -220,7 +239,8 @@ static void capture_loop(capture_thread_args_mt *args) {
     }
 }
 
-void *capture_thread(void *arg) {
+void *capture_thread(void *arg)
+{
     capture_thread_args_mt *args = arg;
     capture_mt *cap = args->cap;
 

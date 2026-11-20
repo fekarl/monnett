@@ -10,8 +10,7 @@ BUILD = build
 OBJ_D = $(BUILD)/obj
 BIN   = $(BUILD)/monnett
 
-
-COMPONENTS = capturer
+COMPONENTS = capturer parser
 
 SRCS = src/main.c \
        $(sort $(wildcard src/common/*.c)) \

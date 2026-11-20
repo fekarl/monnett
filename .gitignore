@@ -5,5 +5,5 @@ __pycache__/
 *.pyc
 .venv/
 logs/
-notes/
 tests/
+notes/

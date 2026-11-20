@@ -1,17 +1,17 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
-#include "errors.h"
 #include <pthread.h>
 #include <stdint.h>
+#include "errors.h"
 
 typedef struct scheduler_startup {
-    pthread_mutex_t lock;
-    pthread_cond_t cond;
-    int expected;
-    int ready;
-    int failed;
-    error_info_mt first_einf;
+    pthread_mutex_t   lock;
+    pthread_cond_t    cond;
+    int               expected;
+    int               ready;
+    int               failed;
+    error_info_mt     first_einf;
 } scheduler_startup_mt;
 
 void scheduler_startup_init(scheduler_startup_mt *startup, int nthreads);

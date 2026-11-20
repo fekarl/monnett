@@ -12,21 +12,22 @@
 #define SCHED_DEADLINE 6
 #endif
 
-#define DEADLINE_TRIES 3
+#define DEADLINE_TRIES    3
 #define DEADLINE_RETRY_MS 10
 
 typedef struct deadline_attr {
     uint32_t size;
     uint32_t sched_policy;
     uint64_t sched_flags;
-    int32_t sched_nice;
+    int32_t  sched_nice;
     uint32_t sched_priority;
     uint64_t sched_runtime;
     uint64_t sched_deadline;
     uint64_t sched_period;
 } deadline_attr_mt;
 
-static void deadline_after(struct timespec *ts, int ms) {
+static void deadline_after(struct timespec *ts, int ms)
+{
     clock_gettime(CLOCK_MONOTONIC, ts);
     ts->tv_sec += ms / 1000;
     ts->tv_nsec += (long)(ms % 1000) * 1000000L;
@@ -36,15 +37,17 @@ static void deadline_after(struct timespec *ts, int ms) {
     }
 }
 
-static void sleep_ms(int ms) {
-    struct timespec ts = {.tv_sec = ms / 1000,
-                          .tv_nsec = (long)(ms % 1000) * 1000000L};
+static void sleep_ms(int ms)
+{
+    struct timespec ts = { .tv_sec = ms / 1000,
+                           .tv_nsec = (long)(ms % 1000) * 1000000L };
 
     while (nanosleep(&ts, &ts) != 0 && errno == EINTR)
         ;
 }
 
-void scheduler_startup_init(scheduler_startup_mt *startup, int nthreads) {
+void scheduler_startup_init(scheduler_startup_mt *startup, int nthreads)
+{
     pthread_condattr_t attr;
 
     memset(startup, 0, sizeof *startup);
@@ -57,13 +60,15 @@ void scheduler_startup_init(scheduler_startup_mt *startup, int nthreads) {
     pthread_condattr_destroy(&attr);
 }
 
-void scheduler_startup_destroy(scheduler_startup_mt *startup) {
+void scheduler_startup_destroy(scheduler_startup_mt *startup)
+{
     pthread_cond_destroy(&startup->cond);
     pthread_mutex_destroy(&startup->lock);
 }
 
 error_code_mt scheduler_set_deadline(uint64_t runtime_ns, uint64_t deadline_ns,
-                                     uint64_t period_ns, error_info_mt *einf) {
+                                     uint64_t period_ns, error_info_mt *einf)
+{
     deadline_attr_mt attr;
 
     memset(&attr, 0, sizeof attr);
@@ -85,7 +90,8 @@ error_code_mt scheduler_set_deadline(uint64_t runtime_ns, uint64_t deadline_ns,
                       "not enough CPU bandwidth (EBUSY after 3 tries)");
 }
 
-error_code_mt scheduler_drop_caps(error_info_mt *einf) {
+error_code_mt scheduler_drop_caps(error_info_mt *einf)
+{
     cap_t caps = cap_init();
 
     if (caps == NULL)
@@ -100,8 +106,8 @@ error_code_mt scheduler_drop_caps(error_info_mt *einf) {
     return ERR_OK;
 }
 
-void scheduler_report(scheduler_startup_mt *startup,
-                      const error_info_mt *einf) {
+void scheduler_report(scheduler_startup_mt *startup, const error_info_mt *einf)
+{
     pthread_mutex_lock(&startup->lock);
     if (einf != NULL && einf->code != ERR_OK) {
         if (!startup->failed) {
@@ -116,7 +122,8 @@ void scheduler_report(scheduler_startup_mt *startup,
 }
 
 error_code_mt scheduler_wait_all(scheduler_startup_mt *startup, int timeout_ms,
-                                 error_info_mt *einf) {
+                                 error_info_mt *einf)
+{
     struct timespec until;
     int timed_out = 0;
 

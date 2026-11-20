@@ -44,8 +44,8 @@ static const char *option_name(char **argv, int opt) {
     return shortopt;
 }
 
-static error_code_mt parse_args(int argc, char **argv, cli_opts_mt *opts,
-                                error_info_mt *einf) {
+static error_code_mt parse_args(int argc, char **argv,
+                                cli_opts_mt *opts, error_info_mt *einf) {
     static const struct option longopts[] = {
         {"config", required_argument, NULL, 'c'},
         {"source", required_argument, NULL, 'i'},
@@ -124,7 +124,8 @@ static int wait_for_stop(engine_mt *eng, const sigset_t *sigs) {
 
 static int exit_code(const engine_mt *eng) { return (int)eng->einf.code; }
 
-static error_code_mt load_config(engine_mt *eng, const cli_opts_mt *opts) {
+static error_code_mt load_config(engine_mt *eng,
+                                 const cli_opts_mt *opts) {
     const char *path = opts->config ? opts->config : DEFAULT_CONFIG;
     int required = (opts->config != NULL);
 
@@ -162,7 +163,7 @@ static void run_capture(engine_mt *eng, const sigset_t *sigs) {
     }
 
     if (scheduler_wait_all(&eng->startup, STARTUP_TIMEOUT_MS, &eng->einf) !=
-            ERR_OK ||
+        ERR_OK ||
         scheduler_drop_caps(&eng->einf) != ERR_OK) {
         cap_stop(&eng->cap);
     } else {

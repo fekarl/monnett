@@ -25,15 +25,15 @@ typedef enum key_id {
 } key_id_mt;
 
 static const char *const key_names[KEY_COUNT] = {
-    [KEY_SOURCE] = "source",
-    [KEY_FILTER] = "filter",
-    [KEY_PROMISC] = "promisc",
-    [KEY_TIMEOUT_MS] = "timeout_ms",
-    [KEY_BUFFER_MB] = "buffer_mb",
-    [KEY_POOL_SLOTS] = "pool_slots",
-    [KEY_CAP_RUNTIME_US] = "cap_runtime_us",
+    [KEY_SOURCE]          = "source",
+    [KEY_FILTER]          = "filter",
+    [KEY_PROMISC]         = "promisc",
+    [KEY_TIMEOUT_MS]      = "timeout_ms",
+    [KEY_BUFFER_MB]       = "buffer_mb",
+    [KEY_POOL_SLOTS]      = "pool_slots",
+    [KEY_CAP_RUNTIME_US]  = "cap_runtime_us",
     [KEY_CAP_DEADLINE_US] = "cap_deadline_us",
-    [KEY_CAP_PERIOD_US] = "cap_period_us",
+    [KEY_CAP_PERIOD_US]   = "cap_period_us",
 };
 
 typedef struct parser {
@@ -45,7 +45,8 @@ typedef struct parser {
     error_info_mt *einf;
 } parser_mt;
 
-void config_defaults(engine_config_mt *cfg) {
+void config_defaults(engine_config_mt *cfg)
+{
     memset(cfg, 0, sizeof *cfg);
     snprintf(cfg->source, sizeof cfg->source, "%s", DEF_SOURCE);
     snprintf(cfg->filter, sizeof cfg->filter, "%s", DEF_FILTER);
@@ -58,7 +59,8 @@ void config_defaults(engine_config_mt *cfg) {
     cfg->cap_period_us = DEF_CAP_PERIOD_US;
 }
 
-error_code_mt config_check_perms(const char *path, error_info_mt *einf) {
+error_code_mt config_check_perms(const char *path, error_info_mt *einf)
+{
     struct stat finfo;
 
     if (stat(path, &finfo) != 0) {
@@ -77,7 +79,8 @@ error_code_mt config_check_perms(const char *path, error_info_mt *einf) {
     return ERR_OK;
 }
 
-static error_code_mt parse_fail(parser_mt *prs, const char *why) {
+static error_code_mt parse_fail(parser_mt *prs, const char *why)
+{
     char where[CFG_SOURCE_MAX + 16];
 
     snprintf(where, sizeof where, "%s:%d", prs->path, prs->line);
@@ -85,25 +88,29 @@ static error_code_mt parse_fail(parser_mt *prs, const char *why) {
 }
 
 static error_code_mt key_fail(parser_mt *prs, const char *why,
-                              const char *key) {
+                              const char *key)
+{
     char msg[128];
 
     snprintf(msg, sizeof msg, "%s '%s'", why, key);
     return parse_fail(prs, msg);
 }
 
-static char *skip_space(char *s) {
+static char *skip_space(char *s)
+{
     while (*s == ' ' || *s == '\t')
         s++;
     return s;
 }
 
-static int is_key_char(char ch) {
+static int is_key_char(char ch)
+{
     return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
            (ch >= '0' && ch <= '9') || ch == '_' || ch == '-';
 }
 
-static int find_key(const char *name) {
+static int find_key(const char *name)
+{
     for (int i = 0; i < KEY_COUNT; i++)
         if (strcmp(key_names[i], name) == 0)
             return i;
@@ -111,7 +118,8 @@ static int find_key(const char *name) {
 }
 
 static error_code_mt read_string(parser_mt *prs, char **str, char *out,
-                                 size_t size) {
+                                 size_t size)
+{
     char *r = *str + 1;
     size_t n = 0;
 
@@ -123,18 +131,10 @@ static error_code_mt read_string(parser_mt *prs, char **str, char *out,
         if (ch == '\\') {
             r++;
             switch (*r) {
-            case '"':
-                ch = '"';
-                break;
-            case '\\':
-                ch = '\\';
-                break;
-            case 't':
-                ch = '\t';
-                break;
-            case 'n':
-                ch = '\n';
-                break;
+            case '"':  ch = '"';  break;
+            case '\\': ch = '\\'; break;
+            case 't':  ch = '\t'; break;
+            case 'n':  ch = '\n'; break;
             default:
                 return parse_fail(prs, "unknown escape in string");
             }
@@ -150,7 +150,8 @@ static error_code_mt read_string(parser_mt *prs, char **str, char *out,
 }
 
 static error_code_mt read_bare(parser_mt *prs, char **str, char *out,
-                               size_t size) {
+                               size_t size)
+{
     char *r = *str;
     size_t n = 0;
 
@@ -167,7 +168,8 @@ static error_code_mt read_bare(parser_mt *prs, char **str, char *out,
 }
 
 static int parse_uint(const char *text, unsigned long long max,
-                      unsigned long long *out) {
+                      unsigned long long *out)
+{
     char *end;
 
     if (text[0] < '0' || text[0] > '9')
@@ -180,8 +182,9 @@ static int parse_uint(const char *text, unsigned long long max,
     return 0;
 }
 
-static error_code_mt set_value(parser_mt *prs, engine_config_mt *cfg, int key,
-                               int quoted, const char *text) {
+static error_code_mt set_value(parser_mt *prs, engine_config_mt *cfg,
+                               int key, int quoted, const char *text)
+{
     unsigned long long num = 0;
     const char *name = key_names[key];
 
@@ -215,31 +218,19 @@ static error_code_mt set_value(parser_mt *prs, engine_config_mt *cfg, int key,
         return key_fail(prs, "expected a whole number for", name);
 
     switch (key) {
-    case KEY_TIMEOUT_MS:
-        cfg->timeout_ms = (int)num;
-        break;
-    case KEY_BUFFER_MB:
-        cfg->buffer_mb = (int)num;
-        break;
-    case KEY_POOL_SLOTS:
-        cfg->pool_slots = (uint32_t)num;
-        break;
-    case KEY_CAP_RUNTIME_US:
-        cfg->cap_runtime_us = num;
-        break;
-    case KEY_CAP_DEADLINE_US:
-        cfg->cap_deadline_us = num;
-        break;
-    case KEY_CAP_PERIOD_US:
-        cfg->cap_period_us = num;
-        break;
-    default:
-        break;
+    case KEY_TIMEOUT_MS:      cfg->timeout_ms = (int)num;         break;
+    case KEY_BUFFER_MB:       cfg->buffer_mb = (int)num;          break;
+    case KEY_POOL_SLOTS:      cfg->pool_slots = (uint32_t)num;    break;
+    case KEY_CAP_RUNTIME_US:  cfg->cap_runtime_us = num;          break;
+    case KEY_CAP_DEADLINE_US: cfg->cap_deadline_us = num;         break;
+    case KEY_CAP_PERIOD_US:   cfg->cap_period_us = num;           break;
+    default:                                                      break;
     }
     return ERR_OK;
 }
 
-static error_code_mt parse_section(parser_mt *prs, char *str) {
+static error_code_mt parse_section(parser_mt *prs, char *str)
+{
     char *end = strchr(str, ']');
 
     if (end == NULL)
@@ -264,8 +255,9 @@ static error_code_mt parse_section(parser_mt *prs, char *str) {
     return ERR_OK;
 }
 
-static error_code_mt parse_key_value(parser_mt *prs, engine_config_mt *cfg,
-                                     char *str) {
+static error_code_mt parse_key_value(parser_mt *prs,
+                                     engine_config_mt *cfg, char *str)
+{
     char name[64];
     char value[CFG_FILTER_MAX];
     size_t len = 0;
@@ -309,7 +301,8 @@ static error_code_mt parse_key_value(parser_mt *prs, engine_config_mt *cfg,
 }
 
 static error_code_mt parse_line(parser_mt *prs, engine_config_mt *cfg,
-                                char *line) {
+                                char *line)
+{
     char *str = skip_space(line);
 
     if (*str == '\0' || *str == '#')
@@ -321,13 +314,15 @@ static error_code_mt parse_line(parser_mt *prs, engine_config_mt *cfg,
     return parse_key_value(prs, cfg, str);
 }
 
-static void warn(const char *path, const char *why) {
+static void warn(const char *path, const char *why)
+{
     fprintf(stderr, "monnett: warning: %s: %s\n", path, why);
 }
 
-error_code_mt config_load(engine_config_mt *cfg, const char *path, int required,
-                          error_info_mt *einf) {
-    parser_mt prs = {.path = path, .einf = einf};
+error_code_mt config_load(engine_config_mt *cfg, const char *path,
+                          int required, error_info_mt *einf)
+{
+    parser_mt prs = { .path = path, .einf = einf };
     char line[LINE_MAX_LEN];
     error_code_mt rc = ERR_OK;
 
@@ -367,45 +362,54 @@ error_code_mt config_load(engine_config_mt *cfg, const char *path, int required,
 }
 
 static error_code_mt copy_arg(char *dst, size_t size, const char *src,
-                              const char *opt, error_info_mt *einf) {
+                              const char *opt, error_info_mt *einf)
+{
     if (strlen(src) >= size)
         return error_fail(einf, ERR_ARGS, opt, "value too long");
     memcpy(dst, src, strlen(src) + 1);
     return ERR_OK;
 }
 
-error_code_mt config_apply_args(engine_config_mt *cfg, const cli_opts_mt *opts,
-                                error_info_mt *einf) {
-    if (opts->source && copy_arg(cfg->source, sizeof cfg->source, opts->source,
-                                 "-i", einf) != ERR_OK)
+error_code_mt config_apply_args(engine_config_mt *cfg,
+                                const cli_opts_mt *opts,
+                                error_info_mt *einf)
+{
+    if (opts->source &&
+        copy_arg(cfg->source, sizeof cfg->source, opts->source, "-i",
+                 einf) != ERR_OK)
         return einf->code;
-    if (opts->filter && copy_arg(cfg->filter, sizeof cfg->filter, opts->filter,
-                                 "-f", einf) != ERR_OK)
+    if (opts->filter &&
+        copy_arg(cfg->filter, sizeof cfg->filter, opts->filter, "-f",
+                 einf) != ERR_OK)
         return einf->code;
     return ERR_OK;
 }
 
 static error_code_mt range_fail(error_info_mt *einf, const char *key,
                                 unsigned long long min,
-                                unsigned long long max) {
+                                unsigned long long max)
+{
     char why[96];
 
     snprintf(why, sizeof why, "must be between %llu and %llu", min, max);
     return error_fail(einf, ERR_CONFIG, key, why);
 }
 
-static int ends_with(const char *s, const char *suffix) {
+static int ends_with(const char *s, const char *suffix)
+{
     size_t n = strlen(s), m = strlen(suffix);
 
     return n >= m && strcmp(s + n - m, suffix) == 0;
 }
 
-static int looks_like_file(const char *source) {
+static int looks_like_file(const char *source)
+{
     return strchr(source, '/') != NULL || ends_with(source, ".pcap") ||
            ends_with(source, ".pcapng");
 }
 
-error_code_mt config_validate(engine_config_mt *cfg, error_info_mt *einf) {
+error_code_mt config_validate(engine_config_mt *cfg, error_info_mt *einf)
+{
     struct stat finfo;
 
     if (cfg->source[0] == '\0')
@@ -444,7 +448,8 @@ error_code_mt config_validate(engine_config_mt *cfg, error_info_mt *einf) {
     return ERR_OK;
 }
 
-void config_print(const engine_config_mt *cfg, const char *path) {
+void config_print(const engine_config_mt *cfg, const char *path)
+{
     printf("config:   %s\n", path ? path : "(built-in defaults)");
     printf("source:   %s (%s)\n", cfg->source, cfg->is_file ? "file" : "live");
     printf("filter:   %s\n", cfg->filter[0] ? cfg->filter : "(none)");
