@@ -15,6 +15,19 @@
 #define IP4_MF 0x2000u
 #define IP4_OFF_MASK 0x1FFFu
 
+#define IP6_HDR_LEN 40
+#define IP6_MAX_EXT 8
+#define IP6_FRAG_LEN 8
+#define IP6_FRAG_M 0x0001u
+
+#define NH_HOPOPT 0
+#define NH_ROUTING 43
+#define NH_FRAGMENT 44
+#define NH_ESP 50
+#define NH_AH 51
+#define NH_NONE 59
+#define NH_DSTOPTS 60
+
 #define VLAN_MAX_TAGS 2
 #define VLAN_ID_MASK 0x0FFFu
 
@@ -28,5 +41,6 @@ parse_rc_mt proto_eth(rd_mt *rd, pkt_info_mt *info);
 parse_rc_mt proto_sll2(rd_mt *rd, pkt_info_mt *info);
 parse_rc_mt proto_arp(rd_mt *rd, pkt_info_mt *info, event_mt *ev);
 parse_rc_mt proto_ipv4(rd_mt *rd, pkt_info_mt *info);
+parse_rc_mt proto_ipv6(rd_mt *rd, pkt_info_mt *info);
 
 #endif

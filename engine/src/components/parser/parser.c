@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <sched.h>
 #include <stdio.h>
 #include <string.h>
@@ -25,7 +26,7 @@ static parse_rc_mt parse_l3(rd_mt *rd, pkt_info_mt *info, event_mt *ev) {
     case ETYPE_IP4:
         return proto_ipv4(rd, info);
     case ETYPE_IP6:
-        return PRS_OK;
+        return proto_ipv6(rd, info);
     default:
         return PRS_OTHER;
     }
@@ -75,6 +76,8 @@ void parser_account(parser_mt *prs, parse_rc_mt rc) {
         atomic_fetch_add(&c->per_proto[PROTO_ARP], 1);
     if (prs->info.layers & L_IP4)
         atomic_fetch_add(&c->per_proto[PROTO_IP4], 1);
+    if (prs->info.layers & L_IP6)
+        atomic_fetch_add(&c->per_proto[PROTO_IP6], 1);
 }
 
 static void print_mac(const uint8_t *m) {
@@ -83,6 +86,12 @@ static void print_mac(const uint8_t *m) {
 
 static void print_ip4(const uint8_t *a) {
     printf("%u.%u.%u.%u", a[0], a[1], a[2], a[3]);
+}
+
+static void print_ip6(const uint8_t *a) {
+    char buf[INET6_ADDRSTRLEN];
+
+    printf("%s", inet_ntop(AF_INET6, a, buf, sizeof buf) ? buf : "?");
 }
 
 static void on_packet(parser_mt *prs, parse_rc_mt rc) {
@@ -100,11 +109,13 @@ static void on_packet(parser_mt *prs, parse_rc_mt rc) {
     if (info->layers & L_VLAN)
         printf(" vlan %u", (unsigned)info->vlan);
     printf(" type 0x%04x", (unsigned)info->ethertype);
-    if (info->layers & L_IP4) {
+    if (info->layers & (L_IP4 | L_IP6)) {
+        void (*print_ip)(const uint8_t *) =
+            info->family == 6 ? print_ip6 : print_ip4;
         printf(" | ");
-        print_ip4(info->src_ip);
+        print_ip(info->src_ip);
         printf(" > ");
-        print_ip4(info->dst_ip);
+        print_ip(info->dst_ip);
         printf(" proto %u ttl %u len %u", (unsigned)info->ip_proto,
                (unsigned)info->ttl, (unsigned)info->ip_len);
         if (info->is_frag != FRAG_NONE)

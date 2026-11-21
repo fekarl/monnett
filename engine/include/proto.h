@@ -74,7 +74,7 @@ typedef struct pkt_info {
     uint8_t ip_proto;
     uint8_t ttl;
     uint8_t is_frag;
-    uint16_t ip_len;
+    uint32_t ip_len;
 
     uint16_t src_port, dst_port;
     uint8_t tcp_flags;
