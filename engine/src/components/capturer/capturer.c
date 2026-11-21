@@ -221,7 +221,7 @@ static void capture_loop(capture_thread_args_mt *args)
             continue;
 
         int rc = cap_next(cap, slot);
-        if (slot != NULL)
+        if (slot != NULL && (rc != 1 || ring_push(args->ready, slot) != 0))
             pool_put(args->pool, slot);
 
         if (rc == -1) {
@@ -248,6 +248,7 @@ void *capture_thread(void *arg)
                                args->period_ns, &args->einf) != ERR_OK ||
         scheduler_drop_caps(&args->einf) != ERR_OK) {
         scheduler_report(args->startup, &args->einf);
+        ring_close(args->ready);
         atomic_store(&cap->done, 1);
         return NULL;
     }
@@ -256,6 +257,7 @@ void *capture_thread(void *arg)
     capture_loop(args);
 
     cap_poll_kernel_stats(cap);
+    ring_close(args->ready);
     atomic_store(&cap->done, 1);
     return NULL;
 }

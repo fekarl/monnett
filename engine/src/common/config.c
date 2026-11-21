@@ -21,6 +21,8 @@ typedef enum key_id {
     KEY_CAP_RUNTIME_US,
     KEY_CAP_DEADLINE_US,
     KEY_CAP_PERIOD_US,
+    KEY_PRS_RUNTIME_US,
+    KEY_PRS_BATCH,
     KEY_COUNT
 } key_id_mt;
 
@@ -34,6 +36,8 @@ static const char *const key_names[KEY_COUNT] = {
     [KEY_CAP_RUNTIME_US]  = "cap_runtime_us",
     [KEY_CAP_DEADLINE_US] = "cap_deadline_us",
     [KEY_CAP_PERIOD_US]   = "cap_period_us",
+    [KEY_PRS_RUNTIME_US]  = "prs_runtime_us",
+    [KEY_PRS_BATCH]       = "prs_batch",
 };
 
 typedef struct parser {
@@ -57,6 +61,8 @@ void config_defaults(engine_config_mt *cfg)
     cfg->cap_runtime_us = DEF_CAP_RUNTIME_US;
     cfg->cap_deadline_us = DEF_CAP_DEADLINE_US;
     cfg->cap_period_us = DEF_CAP_PERIOD_US;
+    cfg->prs_runtime_us = DEF_PRS_RUNTIME_US;
+    cfg->prs_batch = DEF_PRS_BATCH;
 }
 
 error_code_mt config_check_perms(const char *path, error_info_mt *einf)
@@ -224,6 +230,8 @@ static error_code_mt set_value(parser_mt *prs, engine_config_mt *cfg,
     case KEY_CAP_RUNTIME_US:  cfg->cap_runtime_us = num;          break;
     case KEY_CAP_DEADLINE_US: cfg->cap_deadline_us = num;         break;
     case KEY_CAP_PERIOD_US:   cfg->cap_period_us = num;           break;
+    case KEY_PRS_RUNTIME_US:  cfg->prs_runtime_us = num;          break;
+    case KEY_PRS_BATCH:       cfg->prs_batch = (uint32_t)num;     break;
     default:                                                      break;
     }
     return ERR_OK;
@@ -382,6 +390,8 @@ error_code_mt config_apply_args(engine_config_mt *cfg,
         copy_arg(cfg->filter, sizeof cfg->filter, opts->filter, "-f",
                  einf) != ERR_OK)
         return einf->code;
+    if (opts->dump)
+        cfg->dump = 1;
     return ERR_OK;
 }
 
@@ -435,6 +445,17 @@ error_code_mt config_validate(engine_config_mt *cfg, error_info_mt *einf)
         return error_fail(einf, ERR_CONFIG, "cap_*_us",
                           "need runtime <= deadline <= period");
 
+    if (cfg->prs_runtime_us < SCHED_US_MIN ||
+        cfg->prs_runtime_us > cfg->cap_period_us)
+        return range_fail(einf, "prs_runtime_us", SCHED_US_MIN,
+                          cfg->cap_period_us);
+    if (cfg->prs_batch < 1 || cfg->prs_batch > cfg->pool_slots)
+        return range_fail(einf, "prs_batch", 1, cfg->pool_slots);
+    if (cfg->cap_runtime_us + cfg->prs_runtime_us > cfg->cap_period_us)
+        return error_fail(einf, ERR_CONFIG, "prs_runtime_us",
+                          "need cap_runtime_us + prs_runtime_us <= "
+                          "cap_period_us");
+
     if (stat(cfg->source, &finfo) == 0) {
         if (!S_ISREG(finfo.st_mode))
             return error_fail(einf, ERR_CONFIG, cfg->source,
@@ -463,4 +484,8 @@ void config_print(const engine_config_mt *cfg, const char *path)
            (unsigned long long)cfg->cap_runtime_us,
            (unsigned long long)cfg->cap_deadline_us,
            (unsigned long long)cfg->cap_period_us);
+    printf("parser:   runtime %llu us, period %llu us, batch %u%s\n",
+           (unsigned long long)cfg->prs_runtime_us,
+           (unsigned long long)cfg->cap_period_us, (unsigned)cfg->prs_batch,
+           cfg->dump ? ", dump" : "");
 }

@@ -20,6 +20,9 @@
 #define DEF_CAP_DEADLINE_US 1000
 #define DEF_CAP_PERIOD_US   1000
 
+#define DEF_PRS_RUNTIME_US  300
+#define DEF_PRS_BATCH       256
+
 #define POOL_SLOTS_MIN      1024
 #define POOL_SLOTS_MAX      65536
 #define BUFFER_MB_MIN       1
@@ -33,6 +36,7 @@ typedef struct cli_opts {
     const char *config;
     const char *source;
     const char *filter;
+    int         dump;
     int         help;
 } cli_opts_mt;
 
@@ -47,6 +51,9 @@ typedef struct engine_config {
     uint64_t cap_runtime_us;
     uint64_t cap_deadline_us;
     uint64_t cap_period_us;
+    uint64_t prs_runtime_us;
+    uint32_t prs_batch;
+    int      dump;
     int      file_loaded;
 } engine_config_mt;
 

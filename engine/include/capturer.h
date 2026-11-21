@@ -48,6 +48,7 @@ void cap_close(capture_mt *cap);
 typedef struct capture_thread_args {
     capture_mt           *cap;
     pkt_pool_mt          *pool;
+    pkt_ring_mt          *ready;
     scheduler_startup_mt *startup;
     uint64_t runtime_ns, deadline_ns, period_ns;
     error_info_mt         einf;

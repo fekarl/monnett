@@ -30,6 +30,13 @@ typedef struct pkt_pool {
     pkt_ring_mt free;
 } pkt_pool_mt;
 
+int  ring_init(pkt_ring_mt *r, uint32_t capacity);
+void ring_destroy(pkt_ring_mt *r);
+int  ring_push(pkt_ring_mt *r, pkt_slot_mt *s);
+pkt_slot_mt *ring_pop(pkt_ring_mt *r, int timeout_ms);
+void ring_close(pkt_ring_mt *r);
+int  ring_is_done(pkt_ring_mt *r);
+
 error_code_mt pool_init(pkt_pool_mt *pool, uint32_t nslots,
                         error_info_mt *einf);
 pkt_slot_mt *pool_get(pkt_pool_mt *pool, int wait);

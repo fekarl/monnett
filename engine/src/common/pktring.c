@@ -6,7 +6,7 @@
 #include "errors.h"
 #include "pktring.h"
 
-static int ring_init(pkt_ring_mt *r, uint32_t capacity)
+int ring_init(pkt_ring_mt *r, uint32_t capacity)
 {
     pthread_condattr_t attr;
 
@@ -25,7 +25,7 @@ static int ring_init(pkt_ring_mt *r, uint32_t capacity)
     return 0;
 }
 
-static void ring_destroy(pkt_ring_mt *r)
+void ring_destroy(pkt_ring_mt *r)
 {
     pthread_cond_destroy(&r->not_full);
     pthread_cond_destroy(&r->not_empty);
@@ -34,12 +34,14 @@ static void ring_destroy(pkt_ring_mt *r)
     r->items = NULL;
 }
 
-static int ring_push(pkt_ring_mt *r, pkt_slot_mt *s)
+int ring_push(pkt_ring_mt *r, pkt_slot_mt *s)
 {
     int rc = -1;
 
     pthread_mutex_lock(&r->lock);
-    if (r->count < r->capacity) {
+    if (r->closed) {
+        rc = -2;
+    } else if (r->count < r->capacity) {
         r->items[r->tail] = s;
         r->tail = (r->tail + 1) % r->capacity;
         r->count++;
@@ -61,7 +63,7 @@ static void deadline_after(struct timespec *ts, int ms)
     }
 }
 
-static pkt_slot_mt *ring_pop(pkt_ring_mt *r, int timeout_ms)
+pkt_slot_mt *ring_pop(pkt_ring_mt *r, int timeout_ms)
 {
     pkt_slot_mt *s = NULL;
     struct timespec until;
@@ -70,7 +72,7 @@ static pkt_slot_mt *ring_pop(pkt_ring_mt *r, int timeout_ms)
         deadline_after(&until, timeout_ms);
 
     pthread_mutex_lock(&r->lock);
-    while (r->count == 0 && timeout_ms > 0)
+    while (r->count == 0 && !r->closed && timeout_ms > 0)
         if (pthread_cond_timedwait(&r->not_empty, &r->lock, &until) ==
             ETIMEDOUT)
             break;
@@ -82,6 +84,24 @@ static pkt_slot_mt *ring_pop(pkt_ring_mt *r, int timeout_ms)
     }
     pthread_mutex_unlock(&r->lock);
     return s;
+}
+
+void ring_close(pkt_ring_mt *r)
+{
+    pthread_mutex_lock(&r->lock);
+    r->closed = 1;
+    pthread_cond_broadcast(&r->not_empty);
+    pthread_mutex_unlock(&r->lock);
+}
+
+int ring_is_done(pkt_ring_mt *r)
+{
+    int done;
+
+    pthread_mutex_lock(&r->lock);
+    done = r->closed && r->count == 0;
+    pthread_mutex_unlock(&r->lock);
+    return done;
 }
 
 error_code_mt pool_init(pkt_pool_mt *pool, uint32_t nslots,
