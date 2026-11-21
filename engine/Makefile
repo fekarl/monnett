@@ -15,6 +15,7 @@ COMPONENTS = capturer parser
 SRCS = src/main.c \
        $(sort $(wildcard src/common/*.c)) \
        $(foreach c,$(COMPONENTS),$(sort $(wildcard src/components/$(c)/*.c src/components/$(c)/*/*.c)))
+SRCS := $(foreach f,$(SRCS),$(if $(filter test_%,$(notdir $(f))),,$(f)))
 
 OBJS = $(SRCS:src/%.c=$(OBJ_D)/%.o)
 

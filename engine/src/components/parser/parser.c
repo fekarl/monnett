@@ -18,9 +18,10 @@ void parser_init(parser_mt *prs, int linktype, int dump) {
     prs->dump = dump;
 }
 
-static parse_rc_mt parse_l3(pkt_info_mt *info) {
+static parse_rc_mt parse_l3(rd_mt *rd, pkt_info_mt *info, event_mt *ev) {
     switch (info->ethertype) {
     case ETYPE_ARP:
+        return proto_arp(rd, info, ev);
     case ETYPE_IP4:
     case ETYPE_IP6:
         return PRS_OK;
@@ -45,7 +46,12 @@ parse_rc_mt parse_packet(parser_mt *prs, const pkt_slot_mt *slot) {
     rc = prs->linktype == LINK_SLL2 ? proto_sll2(&rd, info)
                                     : proto_eth(&rd, info);
     if (rc == PRS_OK)
-        rc = parse_l3(info);
+        rc = parse_l3(&rd, info, &prs->ev);
+
+    if (prs->ev.type != EV_NONE) {
+        prs->ev.ts_ns = slot->ts_ns;
+        prs->ev.seq = slot->seq;
+    }
 
     if (rc == PRS_SHORT && slot->caplen < slot->wirelen)
         info->truncated = 1;
@@ -64,6 +70,8 @@ void parser_account(parser_mt *prs, parse_rc_mt rc) {
         atomic_fetch_add(&c->frag, 1);
     if (prs->ev.type != EV_NONE)
         atomic_fetch_add(&c->events, 1);
+    if (prs->info.layers & L_ARP)
+        atomic_fetch_add(&c->per_proto[PROTO_ARP], 1);
 }
 
 static void print_mac(const uint8_t *m) {
@@ -88,9 +96,34 @@ static void on_packet(parser_mt *prs, parse_rc_mt rc) {
            info->truncated ? " truncated" : "");
 }
 
+static void print_ip4(const uint8_t *a) {
+    printf("%u.%u.%u.%u", a[0], a[1], a[2], a[3]);
+}
+
+static void dump_arp(const ev_arp_mt *a) {
+    printf("  arp %s ", a->opcode == ARP_REQUEST ? "request" : "reply");
+    print_ip4(a->sender_ip);
+    printf(" ");
+    print_mac(a->sender_mac);
+    printf(" -> ");
+    print_ip4(a->target_ip);
+    printf(" ");
+    print_mac(a->target_mac);
+    printf("%s%s\n", a->gratuitous ? " gratuitous" : "",
+           a->probe ? " probe" : "");
+}
+
 static void on_event(parser_mt *prs) {
-    if (prs->dump)
+    if (!prs->dump)
+        return;
+    switch (prs->ev.type) {
+    case EV_ARP:
+        dump_arp(&prs->ev.u.arp);
+        break;
+    default:
         printf("  event %d\n", (int)prs->ev.type);
+        break;
+    }
 }
 
 void parser_snapshot(parser_mt *prs, prs_stats_mt *s) {
