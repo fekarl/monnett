@@ -6,21 +6,19 @@
 #include "parser.h"
 
 static const char *const rc_names[] = {
-    [PRS_OK]    = "ok",
+    [PRS_OK] = "ok",
     [PRS_SHORT] = "short",
-    [PRS_BAD]   = "bad",
+    [PRS_BAD] = "bad",
     [PRS_OTHER] = "other",
 };
 
-void parser_init(parser_mt *prs, int linktype, int dump)
-{
+void parser_init(parser_mt *prs, int linktype, int dump) {
     memset(prs, 0, sizeof *prs);
     prs->linktype = linktype;
     prs->dump = dump;
 }
 
-static parse_rc_mt parse_l3(pkt_info_mt *info)
-{
+static parse_rc_mt parse_l3(pkt_info_mt *info) {
     switch (info->ethertype) {
     case ETYPE_ARP:
     case ETYPE_IP4:
@@ -31,8 +29,7 @@ static parse_rc_mt parse_l3(pkt_info_mt *info)
     }
 }
 
-parse_rc_mt parse_packet(parser_mt *prs, const pkt_slot_mt *slot)
-{
+parse_rc_mt parse_packet(parser_mt *prs, const pkt_slot_mt *slot) {
     pkt_info_mt *info = &prs->info;
     parse_rc_mt rc;
     rd_mt rd;
@@ -55,8 +52,7 @@ parse_rc_mt parse_packet(parser_mt *prs, const pkt_slot_mt *slot)
     return rc;
 }
 
-void parser_account(parser_mt *prs, parse_rc_mt rc)
-{
+void parser_account(parser_mt *prs, parse_rc_mt rc) {
     prs_counters_mt *c = &prs->counters;
 
     atomic_fetch_add(&c->parsed, 1);
@@ -70,14 +66,11 @@ void parser_account(parser_mt *prs, parse_rc_mt rc)
         atomic_fetch_add(&c->events, 1);
 }
 
-static void print_mac(const uint8_t *m)
-{
-    printf("%02x:%02x:%02x:%02x:%02x:%02x", m[0], m[1], m[2], m[3], m[4],
-           m[5]);
+static void print_mac(const uint8_t *m) {
+    printf("%02x:%02x:%02x:%02x:%02x:%02x", m[0], m[1], m[2], m[3], m[4], m[5]);
 }
 
-static void on_packet(parser_mt *prs, parse_rc_mt rc)
-{
+static void on_packet(parser_mt *prs, parse_rc_mt rc) {
     const pkt_info_mt *info = &prs->info;
 
     if (!prs->dump)
@@ -95,14 +88,12 @@ static void on_packet(parser_mt *prs, parse_rc_mt rc)
            info->truncated ? " truncated" : "");
 }
 
-static void on_event(parser_mt *prs)
-{
+static void on_event(parser_mt *prs) {
     if (prs->dump)
         printf("  event %d\n", (int)prs->ev.type);
 }
 
-void parser_snapshot(parser_mt *prs, prs_stats_mt *s)
-{
+void parser_snapshot(parser_mt *prs, prs_stats_mt *s) {
     prs_counters_mt *c = &prs->counters;
 
     s->parsed = atomic_load(&c->parsed);
@@ -115,8 +106,7 @@ void parser_snapshot(parser_mt *prs, prs_stats_mt *s)
         s->per_proto[i] = atomic_load(&c->per_proto[i]);
 }
 
-static void parser_loop(parser_thread_args_mt *args)
-{
+static void parser_loop(parser_thread_args_mt *args) {
     parser_mt *prs = args->prs;
 
     for (;;) {
@@ -137,8 +127,7 @@ static void parser_loop(parser_thread_args_mt *args)
     }
 }
 
-void *parser_thread(void *arg)
-{
+void *parser_thread(void *arg) {
     parser_thread_args_mt *args = arg;
 
     if (scheduler_set_deadline(args->runtime_ns, args->deadline_ns,

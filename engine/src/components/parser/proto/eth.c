@@ -2,8 +2,7 @@
 
 #include "decode.h"
 
-parse_rc_mt proto_eth(rd_mt *rd, pkt_info_mt *info)
-{
+parse_rc_mt proto_eth(rd_mt *rd, pkt_info_mt *info) {
     uint16_t type, tci;
     int tags = 0;
 
@@ -28,14 +27,12 @@ parse_rc_mt proto_eth(rd_mt *rd, pkt_info_mt *info)
     return PRS_OK;
 }
 
-parse_rc_mt proto_sll2(rd_mt *rd, pkt_info_mt *info)
-{
+parse_rc_mt proto_sll2(rd_mt *rd, pkt_info_mt *info) {
     uint16_t type, hatype;
     uint8_t alen, addr[SLL2_ADDR_LEN];
 
     if (rd_be16(rd, &type) || rd_skip(rd, 6) || rd_be16(rd, &hatype) ||
-        rd_skip(rd, 1) || rd_u8(rd, &alen) ||
-        rd_bytes(rd, addr, SLL2_ADDR_LEN))
+        rd_skip(rd, 1) || rd_u8(rd, &alen) || rd_bytes(rd, addr, SLL2_ADDR_LEN))
         return PRS_SHORT;
     if (alen > SLL2_ADDR_LEN)
         return PRS_BAD;
