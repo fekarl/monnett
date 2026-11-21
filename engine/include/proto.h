@@ -22,6 +22,10 @@ typedef enum parse_rc {
 #define L_UDP (1u << 9)
 #define L_APP (1u << 10)
 
+#define FRAG_NONE 0
+#define FRAG_FIRST 1
+#define FRAG_LATER 2
+
 #define TCP_FIN 0x01
 #define TCP_SYN 0x02
 #define TCP_RST 0x04

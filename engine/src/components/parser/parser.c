@@ -23,6 +23,7 @@ static parse_rc_mt parse_l3(rd_mt *rd, pkt_info_mt *info, event_mt *ev) {
     case ETYPE_ARP:
         return proto_arp(rd, info, ev);
     case ETYPE_IP4:
+        return proto_ipv4(rd, info);
     case ETYPE_IP6:
         return PRS_OK;
     default:
@@ -66,16 +67,22 @@ void parser_account(parser_mt *prs, parse_rc_mt rc) {
         atomic_fetch_add(&c->other, 1);
     else if ((rc == PRS_SHORT && !prs->info.truncated) || rc == PRS_BAD)
         atomic_fetch_add(&c->malformed, 1);
-    if (prs->info.is_frag)
+    if (prs->info.is_frag != FRAG_NONE)
         atomic_fetch_add(&c->frag, 1);
     if (prs->ev.type != EV_NONE)
         atomic_fetch_add(&c->events, 1);
     if (prs->info.layers & L_ARP)
         atomic_fetch_add(&c->per_proto[PROTO_ARP], 1);
+    if (prs->info.layers & L_IP4)
+        atomic_fetch_add(&c->per_proto[PROTO_IP4], 1);
 }
 
 static void print_mac(const uint8_t *m) {
     printf("%02x:%02x:%02x:%02x:%02x:%02x", m[0], m[1], m[2], m[3], m[4], m[5]);
+}
+
+static void print_ip4(const uint8_t *a) {
+    printf("%u.%u.%u.%u", a[0], a[1], a[2], a[3]);
 }
 
 static void on_packet(parser_mt *prs, parse_rc_mt rc) {
@@ -92,12 +99,18 @@ static void on_packet(parser_mt *prs, parse_rc_mt rc) {
     print_mac(info->dst_mac);
     if (info->layers & L_VLAN)
         printf(" vlan %u", (unsigned)info->vlan);
-    printf(" type 0x%04x %s%s\n", (unsigned)info->ethertype, rc_names[rc],
-           info->truncated ? " truncated" : "");
-}
-
-static void print_ip4(const uint8_t *a) {
-    printf("%u.%u.%u.%u", a[0], a[1], a[2], a[3]);
+    printf(" type 0x%04x", (unsigned)info->ethertype);
+    if (info->layers & L_IP4) {
+        printf(" | ");
+        print_ip4(info->src_ip);
+        printf(" > ");
+        print_ip4(info->dst_ip);
+        printf(" proto %u ttl %u len %u", (unsigned)info->ip_proto,
+               (unsigned)info->ttl, (unsigned)info->ip_len);
+        if (info->is_frag != FRAG_NONE)
+            printf(" frag %s", info->is_frag == FRAG_FIRST ? "first" : "later");
+    }
+    printf(" %s%s\n", rc_names[rc], info->truncated ? " truncated" : "");
 }
 
 static void dump_arp(const ev_arp_mt *a) {
